@@ -67,16 +67,50 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
   if (!ok) throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   console.log("🔍 [AJILTAN] ajiltan.baiguullagiinId:", ajiltan.baiguullagiinId);
-  var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-    ajiltan.baiguullagiinId
-  );
-  console.log("🔍 [AJILTAN] baiguullaga found:", baiguullaga ? "Yes" : "No");
 
-  if (!baiguullaga) {
-    throw new aldaa(
-      "Байгууллагын мэдээлэл олдсонгүй! Ажилтны мэдээлэлд байгууллагын ID байхгүй байна."
+  // Check if there are any baiguullaga records in the database
+  const baiguullagaCount = await Baiguullaga(
+    db.erunkhiiKholbolt
+  ).countDocuments();
+  console.log(
+    "🔍 [AJILTAN] Total baiguullaga records in database:",
+    baiguullagaCount
+  );
+
+  // If no baiguullaga records exist, create a default one
+  let baiguullaga;
+  if (baiguullagaCount === 0) {
+    console.log(
+      "🔍 [AJILTAN] No baiguullaga records found, creating default one..."
+    );
+    baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).create({
+      ner: "Default Organization",
+      register: "0000000",
+      utas: ["00000000"],
+      mail: ["admin@example.com"],
+    });
+    console.log("✅ [AJILTAN] Created default baiguullaga:", baiguullaga._id);
+  } else {
+    // Get the first baiguullaga record
+    baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne();
+    console.log("🔍 [AJILTAN] Using existing baiguullaga:", baiguullaga._id);
+  }
+
+  // Update the ajiltan record with baiguullagiinId if it doesn't have one
+  if (!ajiltan.baiguullagiinId) {
+    console.log("🔍 [AJILTAN] Updating ajiltan with baiguullagiinId...");
+    await Ajiltan(db.erunkhiiKholbolt).updateOne(
+      { _id: ajiltan._id },
+      { baiguullagiinId: baiguullaga._id.toString() }
+    );
+    ajiltan.baiguullagiinId = baiguullaga._id.toString();
+    console.log(
+      "✅ [AJILTAN] Updated ajiltan with baiguullagiinId:",
+      ajiltan.baiguullagiinId
     );
   }
+
+  console.log("🔍 [AJILTAN] baiguullaga found:", baiguullaga ? "Yes" : "No");
 
   var butsaakhObject = {
     result: ajiltan,
