@@ -14,7 +14,8 @@ const ajiltanRoute = require("./routes/ajiltanRoute");
 const tailanRoute = require("./routes/tailanRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
-const dbUrl = "mongodb://localhost:27017/tsagdaa";
+const dbUrl =
+  "mongodb://admin:Br1stelback1@localhost:27017/tsagdaa?authSource=admin";
 mongoose
   .connect(dbUrl, {
     useNewUrlParser: true,
