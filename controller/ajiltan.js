@@ -4,6 +4,8 @@ const Baiguullaga = require("../models/baiguullaga");
 const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
+const jwt = require("jsonwebtoken");
+const fs = require("fs");
 
 const useragent = require("express-useragent");
 const { error } = require("console");

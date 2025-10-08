@@ -27,10 +27,7 @@ const session = require("../models/session");
 crudWithFile(
   router,
   "ajiltan",
-  (req, res, next) => {
-    const { db } = require("zevbackv2");
-    return Ajiltan(db.erunkhiiKholbolt);
-  },
+  Ajiltan,
   {
     fileZam: "./zurag/ajiltan",
     fileName: "zurag",
@@ -239,7 +236,8 @@ router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
       var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
         req.body.baiguullagiinId
       );
-      var ajiltan = new Ajiltan(db.erunkhiiKholbolt)({
+      var AjiltanModel = Ajiltan(db.erunkhiiKholbolt);
+      var ajiltan = new AjiltanModel({
         _id: req.params.id,
         ...req.body,
       });

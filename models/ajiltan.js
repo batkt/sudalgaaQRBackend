@@ -110,24 +110,30 @@ ajiltanSchema.methods.passwordShalgaya = async function (pass) {
   return await bcrypt.compare(pass, this.nuutsUg);
 };
 
-const AjiltanModel = mongoose.model("ajiltan", ajiltanSchema);
-AjiltanModel.estimatedDocumentCount().then((count) => {
-  console.dir(count);
+module.exports = function a(conn) {
+  if (!conn || !conn.kholbolt)
+    throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
+  conn = conn.kholbolt;
+  const AjiltanModel = conn.model("ajiltan", ajiltanSchema);
 
-  if (count == 0) {
-    AjiltanModel.create(
-      new AjiltanModel({
-        ner: "Admin",
-        nevtrekhNer: "Admin",
-        utas: "Admin",
-        mail: "Admin",
-        erkh: "Admin",
-        register: "Admin",
-        albanTushaal: "Admin",
-        nuutsUg: "123",
-      })
-    );
-  }
-});
+  AjiltanModel.estimatedDocumentCount().then((count) => {
+    console.dir(count);
 
-module.exports = AjiltanModel;
+    if (count == 0) {
+      AjiltanModel.create(
+        new AjiltanModel({
+          ner: "Admin",
+          nevtrekhNer: "Admin",
+          utas: "Admin",
+          mail: "Admin",
+          erkh: "Admin",
+          register: "Admin",
+          albanTushaal: "Admin",
+          nuutsUg: "123",
+        })
+      );
+    }
+  });
+
+  return AjiltanModel;
+};
