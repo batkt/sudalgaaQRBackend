@@ -27,7 +27,10 @@ const session = require("../models/session");
 crudWithFile(
   router,
   "ajiltan",
-  Ajiltan,
+  (req, res, next) => {
+    const { db } = require("zevbackv2");
+    return Ajiltan(db.erunkhiiKholbolt);
+  },
   {
     fileZam: "./zurag/ajiltan",
     fileName: "zurag",
