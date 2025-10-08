@@ -27,6 +27,17 @@ const ajiltanSchema = new Schema(
       select: false,
       default: "123",
     },
+    tokhirgoo: {
+      gereeKharakhErkh: [String], //barilgiin id-nuud
+      gereeZasakhErkh: [String],
+      gereeSungakhErkh: [String],
+      gereeSergeekhErkh: [String],
+      gereeTsutslakhErkh: [String],
+      umkhunSaraarKhungulultEsekh: [String],
+      guilgeeUstgakhErkh: [String],
+      guilgeeKhiikhEsekh: [String],
+      aldangiinUldegdelZasakhEsekh: [String],
+    },
   },
   {
     timestamps: true,
@@ -38,11 +49,48 @@ ajiltanSchema.methods.tokenUusgeye = function () {
     {
       id: this._id,
       ner: this.ner,
+      baiguullagiinId: this.baiguullagiinId,
+      salbaruud: salbaruud,
+      duusakhOgnoo: duusakhOgnoo,
     },
     process.env.APP_SECRET,
     {
       expiresIn: "12h",
     }
+  );
+  return token;
+};
+
+ajiltanSchema.methods.khugatsaaguiTokenUusgeye = function () {
+  const token = jwt.sign(
+    {
+      id: this._id,
+      ner: this.ner,
+      baiguullagiinId: this.baiguullagiinId,
+    },
+    process.env.APP_SECRET,
+    {}
+  );
+  return token;
+};
+
+ajiltanSchema.methods.zochinTokenUusgye = function (
+  baiguullagiinId,
+  gishuunEsekh
+) {
+  const token = jwt.sign(
+    {
+      id: "zochin",
+      baiguullagiinId,
+    },
+    process.env.APP_SECRET,
+    gishuunEsekh
+      ? {
+          expiresIn: "12h",
+        }
+      : {
+          expiresIn: "1h",
+        }
   );
   return token;
 };
