@@ -16,7 +16,7 @@ const {
   crud,
   UstsanBarimt,
   Segment,
-  tsagdaaDuusakhOgnooAvya,
+  sudalgaaDuusakhOgnooAvya,
 } = require("zevback");
 
 const fs = require("fs");
@@ -64,7 +64,7 @@ router.post("/ajiltanNevtrey", async (req, res, next) => {
       throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
     var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
-    tsagdaaDuusakhOgnooAvya(
+    sudalgaaDuusakhOgnooAvya(
       res,
       async (khariu, res1) => {
         try {
