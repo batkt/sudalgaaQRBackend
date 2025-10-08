@@ -134,16 +134,16 @@ module.exports = function a(conn) {
   if (!conn) {
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
   }
-  
+
   // Handle zevbackv2 connection structure
   let actualConnection = conn;
   if (conn.kholbolt) {
     actualConnection = conn.kholbolt;
   }
-  
-  if (!actualConnection || typeof actualConnection.model !== 'function') {
+
+  if (!actualConnection || typeof actualConnection.model !== "function") {
     throw new Error("Холболтын мэдээлэл буруу байна!");
   }
-  
+
   return actualConnection.model("ajiltan", ajiltanSchema);
 };

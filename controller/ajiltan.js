@@ -55,7 +55,10 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     "📊 [AJILTAN] Database connection status:",
     db.erunkhiiKholbolt ? "Connected" : "Not connected"
   );
-  console.log("🔍 [AJILTAN] db.erunkhiiKholbolt structure:", JSON.stringify(db.erunkhiiKholbolt, null, 2));
+  console.log(
+    "🔍 [AJILTAN] db.erunkhiiKholbolt structure:",
+    JSON.stringify(db.erunkhiiKholbolt, null, 2)
+  );
   console.log("👤 [AJILTAN] Login attempt for user:", req.body.nevtrekhNer);
 
   let ajiltan;
