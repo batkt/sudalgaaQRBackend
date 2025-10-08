@@ -14,23 +14,37 @@ const ajiltanRoute = require("./routes/ajiltanRoute");
 const tailanRoute = require("./routes/tailanRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
-// Initialize zevbackv2 database
+// Initialize zevbackv2 database with MongoDB URL
 console.log("🔗 [ZEVBACKV2] Initializing zevbackv2 database...");
 const { db } = require("zevbackv2");
 
 // Wait for zevbackv2 database to be ready
-const waitForZevbackv2 = async () => {
+const waitForZevbackv2 = async (mongoUrl) => {
   return new Promise((resolve) => {
-    const checkConnection = () => {
-      if (db.erunkhiiKholbolt && Object.keys(db.erunkhiiKholbolt).length > 0) {
-        console.log("✅ [ZEVBACKV2] zevbackv2 database connection ready");
-        resolve();
-      } else {
-        console.log("⏳ [ZEVBACKV2] Waiting for database connection...");
-        setTimeout(checkConnection, 100);
-      }
-    };
-    checkConnection();
+    console.log(
+      "🔗 [ZEVBACKV2] Initializing with URL:",
+      mongoUrl.replace(/\/\/.*@/, "//***:***@")
+    );
+    db.kholboltUusgey(null, mongoUrl)
+      .then(() => {
+        const checkConnection = () => {
+          if (
+            db.erunkhiiKholbolt &&
+            Object.keys(db.erunkhiiKholbolt).length > 0
+          ) {
+            console.log("✅ [ZEVBACKV2] zevbackv2 database connection ready");
+            resolve();
+          } else {
+            console.log("⏳ [ZEVBACKV2] Waiting for database connection...");
+            setTimeout(checkConnection, 100);
+          }
+        };
+        checkConnection();
+      })
+      .catch((err) => {
+        console.error("❌ [ZEVBACKV2] Database initialization failed:", err);
+        resolve(); // Continue anyway
+      });
   });
 };
 
@@ -52,7 +66,7 @@ mongoose
 
     // Wait for zevbackv2 database to be ready
     console.log("⏳ Waiting for zevbackv2 database connection...");
-    await waitForZevbackv2();
+    await waitForZevbackv2(dbUrl);
 
     console.log("🌐 Server starting on port 8085...");
     server.listen(8085, () => {
