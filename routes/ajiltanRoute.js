@@ -16,7 +16,7 @@ const {
   crud,
   UstsanBarimt,
   Segment,
-  sudalgaaDuusakhOgnooAvya,
+  // sudalgaaDuusakhOgnooAvya,
 } = require("zevback");
 
 const fs = require("fs");
@@ -64,25 +64,25 @@ router.post("/ajiltanNevtrey", async (req, res, next) => {
       throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
     var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
-    sudalgaaDuusakhOgnooAvya(
-      res,
-      async (khariu, res1) => {
-        try {
-          if (khariu.success) {
-            const jwt = await ajiltan.tokenUusgeye();
-            var butsaakhObject = {
-              token: jwt,
-              result: ajiltan,
-              success: true,
-            };
-            res1.send(butsaakhObject);
-          }
-        } catch (err1) {
-          next(err1);
-        }
-      },
-      next
-    );
+    // sudalgaaDuusakhOgnooAvya(
+    //   res,
+    //   async (khariu, res1) => {
+    //     try {
+    //       if (khariu.success) {
+    //         const jwt = await ajiltan.tokenUusgeye();
+    //         var butsaakhObject = {
+    //           token: jwt,
+    //           result: ajiltan,
+    //           success: true,
+    //         };
+    //         res1.send(butsaakhObject);
+    //       }
+    //     } catch (err1) {
+    //       next(err1);
+    //     }
+    //   },
+    //   next
+    // );
   } catch (err) {
     next(err);
   }
