@@ -131,8 +131,19 @@ AjiltanModel.estimatedDocumentCount().then((count) => {
 });
 
 module.exports = function a(conn) {
-  if (!conn || !conn.kholbolt)
+  if (!conn) {
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
-  conn = conn.kholbolt;
-  return conn.model("ajiltan", ajiltanSchema);
+  }
+  
+  // Handle zevbackv2 connection structure
+  let actualConnection = conn;
+  if (conn.kholbolt) {
+    actualConnection = conn.kholbolt;
+  }
+  
+  if (!actualConnection || typeof actualConnection.model !== 'function') {
+    throw new Error("Холболтын мэдээлэл буруу байна!");
+  }
+  
+  return actualConnection.model("ajiltan", ajiltanSchema);
 };
