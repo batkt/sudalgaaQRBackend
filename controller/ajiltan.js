@@ -51,6 +51,10 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
+  console.log(
+    "Controller - db.erunkhiiKholbolt:",
+    JSON.stringify(db.erunkhiiKholbolt, null, 2)
+  );
   const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
     .findOne()
     .select("+nuutsUg")

@@ -111,10 +111,12 @@ ajiltanSchema.methods.passwordShalgaya = async function (pass) {
 };
 
 module.exports = function a(conn) {
-  if (!conn || !conn.kholbolt)
-    throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
-  conn = conn.kholbolt;
-  const AjiltanModel = conn.model("ajiltan", ajiltanSchema);
+  console.log("Ajiltan model - conn:", JSON.stringify(conn, null, 2));
+  if (!conn) throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
+
+  // If conn has kholbolt property, use it, otherwise use conn directly
+  const connection = conn.kholbolt || conn;
+  const AjiltanModel = connection.model("ajiltan", ajiltanSchema);
 
   AjiltanModel.estimatedDocumentCount().then((count) => {
     console.dir(count);
