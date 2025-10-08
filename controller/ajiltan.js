@@ -66,10 +66,17 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   if (!ajiltan) throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
   if (!ok) throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+  console.log("🔍 [AJILTAN] ajiltan.baiguullagiinId:", ajiltan.baiguullagiinId);
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
     ajiltan.baiguullagiinId
   );
-  console.log("--------->Baiguullagiin id" + baiguullaga);
+  console.log("🔍 [AJILTAN] baiguullaga found:", baiguullaga ? "Yes" : "No");
+
+  if (!baiguullaga) {
+    throw new aldaa(
+      "Байгууллагын мэдээлэл олдсонгүй! Ажилтны мэдээлэлд байгууллагын ID байхгүй байна."
+    );
+  }
 
   var butsaakhObject = {
     result: ajiltan,
