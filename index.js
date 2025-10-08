@@ -14,18 +14,36 @@ const ajiltanRoute = require("./routes/ajiltanRoute");
 const tailanRoute = require("./routes/tailanRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
+// Initialize zevbackv2 database
+console.log("🔗 [ZEVBACKV2] Initializing zevbackv2 database...");
+const { db } = require("zevbackv2");
+console.log("✅ [ZEVBACKV2] zevbackv2 database initialized");
+
 const dbUrl =
+  process.env.MONGODB_URL ||
   "mongodb://admin:Br1stelback1@localhost:27017/qrSudalgaa?authSource=admin";
+
+console.log("🔗 Attempting to connect to MongoDB...");
+console.log("📍 Database URL:", dbUrl.replace(/\/\/.*@/, "//***:***@")); // Hide credentials in logs
+
 mongoose
   .connect(dbUrl, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
   .then((result) => {
-    console.log("xolbogdson");
-    server.listen(8085);
+    console.log("✅ Main MongoDB connection successful!");
+    console.log("📊 Connected to database:", result.connection.name);
+    console.log("🌐 Server starting on port 8085...");
+    server.listen(8085, () => {
+      console.log("🚀 Server is running on http://localhost:8085");
+    });
   })
-  .catch((err) => console.log(err));
+  .catch((err) => {
+    console.error("❌ Main MongoDB connection failed:");
+    console.error("🔍 Error details:", err.message);
+    console.error("📋 Full error:", err);
+  });
 
 process.env.TZ = "Asia/Ulaanbaatar";
 

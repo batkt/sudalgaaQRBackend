@@ -49,14 +49,27 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
-  const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
-    .findOne()
-    .select("+nuutsUg")
-    .where("nevtrekhNer")
-    .equals(req.body.nevtrekhNer)
-    .catch((err) => {
-      next(err);
-    });
+  
+  console.log('🔍 [AJILTAN] Starting login process...');
+  console.log('📊 [AJILTAN] Database connection status:', db.erunkhiiKholbolt ? 'Connected' : 'Not connected');
+  console.log('👤 [AJILTAN] Login attempt for user:', req.body.nevtrekhNer);
+  
+  let ajiltan;
+  try {
+    ajiltan = await Ajiltan(db.erunkhiiKholbolt)
+      .findOne()
+      .select("+nuutsUg")
+      .where("nevtrekhNer")
+      .equals(req.body.nevtrekhNer);
+    
+    console.log('✅ [AJILTAN] User query executed successfully');
+    console.log('👤 [AJILTAN] User found:', ajiltan ? 'Yes' : 'No');
+  } catch (err) {
+    console.error('❌ [AJILTAN] Error in user query:', err.message);
+    console.error('🔍 [AJILTAN] Full error:', err);
+    next(err);
+    return;
+  }
 
   if (!ajiltan) throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
