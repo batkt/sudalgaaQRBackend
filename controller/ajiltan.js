@@ -124,6 +124,32 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   }
 
   console.log("----------------->ajiltan.nevtrekhNer " + ajiltan);
+
+  // Skip external API call for default organization
+  if (baiguullaga.register === "0000000") {
+    console.log(
+      "🔍 [AJILTAN] Skipping external API call for default organization"
+    );
+    var butsaakhObject = {
+      result: ajiltan,
+      success: true,
+    };
+
+    // Add default values for default organization
+    butsaakhObject.result.salbaruud = [];
+    butsaakhObject.result.duusakhOgnoo = new Date(
+      Date.now() + 365 * 24 * 60 * 60 * 1000
+    ); // 1 year from now
+    butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+
+    // Generate token without external API data
+    const jwt = await ajiltan.tokenUusgeye();
+    butsaakhObject.token = jwt;
+
+    res.status(200).json(butsaakhObject);
+    return;
+  }
+
   duusakhOgnooAvya(
     { register: baiguullaga.register, system: "sukh" },
     async (khariu) => {
