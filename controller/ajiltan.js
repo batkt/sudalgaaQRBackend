@@ -143,7 +143,10 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     butsaakhObject.result.zogsoolNer = baiguullaga.ner;
 
     // Generate token without external API data
-    const jwt = await ajiltan.tokenUusgeye();
+    const jwt = await ajiltan.tokenUusgeye(
+      butsaakhObject.result.duusakhOgnoo,
+      butsaakhObject.result.salbaruud
+    );
     butsaakhObject.token = jwt;
 
     res.status(200).json(butsaakhObject);

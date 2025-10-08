@@ -44,14 +44,14 @@ const ajiltanSchema = new Schema(
   }
 );
 
-ajiltanSchema.methods.tokenUusgeye = function () {
+ajiltanSchema.methods.tokenUusgeye = function (duusakhOgnoo, salbaruud) {
   const token = jwt.sign(
     {
       id: this._id,
       ner: this.ner,
       baiguullagiinId: this.baiguullagiinId,
-      salbaruud: salbaruud,
-      duusakhOgnoo: duusakhOgnoo,
+      salbaruud: salbaruud || [],
+      duusakhOgnoo: duusakhOgnoo || new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours from now
     },
     process.env.APP_SECRET,
     {
