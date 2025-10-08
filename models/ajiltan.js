@@ -141,8 +141,17 @@ module.exports = function a(conn) {
     actualConnection = conn.kholbolt;
   }
 
-  if (!actualConnection || typeof actualConnection.model !== "function") {
-    throw new Error("Холболтын мэдээлэл буруу байна!");
+  // Check if the connection object is empty or invalid
+  if (!actualConnection || Object.keys(actualConnection).length === 0) {
+    throw new Error(
+      "Холболтын мэдээлэл хоосон байна! Зэвбэкв2 холболт бэлэн болоогүй байна."
+    );
+  }
+
+  if (typeof actualConnection.model !== "function") {
+    throw new Error(
+      "Холболтын мэдээлэл буруу байна! Модел үүсгэх боломжгүй байна."
+    );
   }
 
   return actualConnection.model("ajiltan", ajiltanSchema);

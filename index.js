@@ -17,7 +17,22 @@ const aldaaBarigch = require("./middleware/aldaaBarigch");
 // Initialize zevbackv2 database
 console.log("🔗 [ZEVBACKV2] Initializing zevbackv2 database...");
 const { db } = require("zevbackv2");
-console.log("✅ [ZEVBACKV2] zevbackv2 database initialized");
+
+// Wait for zevbackv2 database to be ready
+const waitForZevbackv2 = async () => {
+  return new Promise((resolve) => {
+    const checkConnection = () => {
+      if (db.erunkhiiKholbolt && Object.keys(db.erunkhiiKholbolt).length > 0) {
+        console.log("✅ [ZEVBACKV2] zevbackv2 database connection ready");
+        resolve();
+      } else {
+        console.log("⏳ [ZEVBACKV2] Waiting for database connection...");
+        setTimeout(checkConnection, 100);
+      }
+    };
+    checkConnection();
+  });
+};
 
 const dbUrl =
   process.env.MONGODB_URL ||
@@ -31,9 +46,14 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then((result) => {
+  .then(async (result) => {
     console.log("✅ Main MongoDB connection successful!");
     console.log("📊 Connected to database:", result.connection.name);
+
+    // Wait for zevbackv2 database to be ready
+    console.log("⏳ Waiting for zevbackv2 database connection...");
+    await waitForZevbackv2();
+
     console.log("🌐 Server starting on port 8085...");
     server.listen(8085, () => {
       console.log("🚀 Server is running on http://localhost:8085");
