@@ -236,8 +236,7 @@ router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
       var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
         req.body.baiguullagiinId
       );
-      var AjiltanModel = Ajiltan(db.erunkhiiKholbolt);
-      var ajiltan = new AjiltanModel({
+      var ajiltan = new Ajiltan(db.erunkhiiKholbolt)({
         _id: req.params.id,
         ...req.body,
       });

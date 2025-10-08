@@ -4,8 +4,6 @@ const Baiguullaga = require("../models/baiguullaga");
 const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
-const jwt = require("jsonwebtoken");
-const fs = require("fs");
 
 const useragent = require("express-useragent");
 const { error } = require("console");
@@ -51,10 +49,6 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
-  console.log(
-    "Controller - db.erunkhiiKholbolt:",
-    JSON.stringify(db.erunkhiiKholbolt, null, 2)
-  );
   const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
     .findOne()
     .select("+nuutsUg")

@@ -110,32 +110,24 @@ ajiltanSchema.methods.passwordShalgaya = async function (pass) {
   return await bcrypt.compare(pass, this.nuutsUg);
 };
 
-module.exports = function a(conn) {
-  console.log("Ajiltan model - conn:", JSON.stringify(conn, null, 2));
-  if (!conn) throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
+const AjiltanModel = mongoose.model("ajiltan", ajiltanSchema);
+AjiltanModel.estimatedDocumentCount().then((count) => {
+  console.dir(count);
 
-  // If conn has kholbolt property, use it, otherwise use conn directly
-  const connection = conn.kholbolt || conn;
-  const AjiltanModel = connection.model("ajiltan", ajiltanSchema);
+  if (count == 0) {
+    AjiltanModel.create(
+      new AjiltanModel({
+        ner: "Admin",
+        nevtrekhNer: "Admin",
+        utas: "Admin",
+        mail: "Admin",
+        erkh: "Admin",
+        register: "Admin",
+        albanTushaal: "Admin",
+        nuutsUg: "123",
+      })
+    );
+  }
+});
 
-  AjiltanModel.estimatedDocumentCount().then((count) => {
-    console.dir(count);
-
-    if (count == 0) {
-      AjiltanModel.create(
-        new AjiltanModel({
-          ner: "Admin",
-          nevtrekhNer: "Admin",
-          utas: "Admin",
-          mail: "Admin",
-          erkh: "Admin",
-          register: "Admin",
-          albanTushaal: "Admin",
-          nuutsUg: "123",
-        })
-      );
-    }
-  });
-
-  return AjiltanModel;
-};
+module.exports = AjiltanModel;
