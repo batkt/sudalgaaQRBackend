@@ -308,92 +308,27 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         nuutsUg: "123",
       });
 
-      // Process department assignments
+      // Process department assignments - Simple approach
+      employee.departmentAssignments = [];
+
       if (columnMap.departments) {
-        const departmentPath = [];
+        const flatDepartments = getAllDepartmentsFlat(allDepartments);
 
-        // Sort department columns by their hierarchical level (left to right order)
-        const sortedDepartments = columnMap.departments.sort((a, b) => {
-          return a.column.charCodeAt(0) - b.column.charCodeAt(0);
-        });
-
-        for (const dept of sortedDepartments) {
+        for (const dept of columnMap.departments) {
           const cellValue = row[usegTooruuKhurvuulekh(dept.column)];
-          console.log(`Row ${i + 2}, Column ${dept.column}: "${cellValue}"`);
-          // Check if the cell has a value (indicating this department is selected)
+
+          // If cell has value, find matching department
           if (cellValue && safeTrim(cellValue) !== "") {
-            // Use the column header (department name) instead of cell value
-            departmentPath.push(safeTrim(dept.name));
-          }
-        }
-        console.log(`Row ${i + 2} department path:`, departmentPath);
+            const foundDept = flatDepartments.find((d) => d.ner === dept.name);
 
-        if (departmentPath.length > 0) {
-          console.log(
-            `Row ${i + 2}: Searching for department path:`,
-            departmentPath
-          );
-          const assignments = await findDepartmentPath(
-            departmentPath,
-            allDepartments
-          );
-          console.log(`Row ${i + 2}: Found assignments:`, assignments);
-
-          if (assignments.length > 0) {
-            employee.departmentAssignments = assignments;
-            console.log(
-              `Row ${i + 2}: Successfully assigned departments:`,
-              assignments.map((a) => a.departmentName)
-            );
-          } else {
-            console.log(
-              `Row ${i + 2}: No assignments found, trying fallback...`
-            );
-            // Try to find at least the first department in the path
-            const flatDepartments = getAllDepartmentsFlat(allDepartments);
-            console.log(
-              `Row ${i + 2}: Available departments:`,
-              flatDepartments.map((d) => d.ner)
-            );
-            const firstDept = flatDepartments.find(
-              (d) =>
-                d.ner &&
-                departmentPath[0] &&
-                (d.ner
-                  .toLowerCase()
-                  .includes(departmentPath[0].toLowerCase()) ||
-                  departmentPath[0]
-                    .toLowerCase()
-                    .includes(d.ner.toLowerCase()) ||
-                  d.ner.toLowerCase() === departmentPath[0].toLowerCase())
-            );
-
-            if (firstDept) {
-              console.log(
-                `Row ${i + 2}: Found fallback department:`,
-                firstDept.ner
-              );
-              employee.departmentAssignments = [
-                {
-                  level: firstDept.level,
-                  departmentId: firstDept._id,
-                  departmentName: firstDept.ner,
-                },
-              ];
-            } else {
-              console.log(
-                `Row ${i + 2}: No fallback department found for:`,
-                departmentPath[0]
-              );
-              employee.departmentAssignments = [];
-              errors += `Мөр ${
-                i + 2
-              }: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
+            if (foundDept) {
+              employee.departmentAssignments.push({
+                level: foundDept.level,
+                departmentId: foundDept._id,
+                departmentName: foundDept.ner,
+              });
             }
           }
-        } else {
-          console.log(`Row ${i + 2}: No department path found`);
-          employee.departmentAssignments = [];
         }
       }
 
