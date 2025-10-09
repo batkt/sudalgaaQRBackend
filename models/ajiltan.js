@@ -27,70 +27,22 @@ const ajiltanSchema = new Schema(
       select: false,
       default: "123",
     },
-    tokhirgoo: {
-      gereeKharakhErkh: [String], //barilgiin id-nuud
-      gereeZasakhErkh: [String],
-      gereeSungakhErkh: [String],
-      gereeSergeekhErkh: [String],
-      gereeTsutslakhErkh: [String],
-      umkhunSaraarKhungulultEsekh: [String],
-      guilgeeUstgakhErkh: [String],
-      guilgeeKhiikhEsekh: [String],
-      aldangiinUldegdelZasakhEsekh: [String],
-    },
   },
   {
     timestamps: true,
   }
 );
 
-ajiltanSchema.methods.tokenUusgeye = function (duusakhOgnoo, salbaruud) {
+ajiltanSchema.methods.tokenUusgeye = function () {
   const token = jwt.sign(
     {
       id: this._id,
       ner: this.ner,
-      baiguullagiinId: this.baiguullagiinId,
-      salbaruud: salbaruud || [],
-      duusakhOgnoo: duusakhOgnoo || new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours from now
     },
     process.env.APP_SECRET,
     {
       expiresIn: "12h",
     }
-  );
-  return token;
-};
-
-ajiltanSchema.methods.khugatsaaguiTokenUusgeye = function () {
-  const token = jwt.sign(
-    {
-      id: this._id,
-      ner: this.ner,
-      baiguullagiinId: this.baiguullagiinId,
-    },
-    process.env.APP_SECRET,
-    {}
-  );
-  return token;
-};
-
-ajiltanSchema.methods.zochinTokenUusgye = function (
-  baiguullagiinId,
-  gishuunEsekh
-) {
-  const token = jwt.sign(
-    {
-      id: "zochin",
-      baiguullagiinId,
-    },
-    process.env.APP_SECRET,
-    gishuunEsekh
-      ? {
-          expiresIn: "12h",
-        }
-      : {
-          expiresIn: "1h",
-        }
   );
   return token;
 };
@@ -111,30 +63,23 @@ ajiltanSchema.methods.passwordShalgaya = async function (pass) {
 };
 
 const AjiltanModel = mongoose.model("ajiltan", ajiltanSchema);
+AjiltanModel.estimatedDocumentCount().then((count) => {
+  console.dir(count);
 
-module.exports = function a(conn) {
-  if (!conn) {
-    throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
-  }
-
-  // Handle zevbackv2 connection structure
-  let actualConnection = conn;
-  if (conn.kholbolt) {
-    actualConnection = conn.kholbolt;
-  }
-
-  // Check if the connection object is empty or invalid
-  if (!actualConnection || Object.keys(actualConnection).length === 0) {
-    throw new Error(
-      "Холболтын мэдээлэл хоосон байна! Зэвбэкв2 холболт бэлэн болоогүй байна."
+  if (count == 0) {
+    AjiltanModel.create(
+      new AjiltanModel({
+        ner: "Admin",
+        nevtrekhNer: "Admin",
+        utas: "Admin",
+        mail: "Admin",
+        erkh: "Admin",
+        register: "Admin",
+        albanTushaal: "Admin",
+        nuutsUg: "123",
+      })
     );
   }
+});
 
-  if (typeof actualConnection.model !== "function") {
-    throw new Error(
-      "Холболтын мэдээлэл буруу байна! Модел үүсгэх боломжгүй байна."
-    );
-  }
-
-  return actualConnection.model("ajiltan", ajiltanSchema);
-};
+module.exports = AjiltanModel;
