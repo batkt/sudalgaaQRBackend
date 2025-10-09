@@ -9,97 +9,75 @@ const {
   getDepartmentsFlat,
   getDepartmentTemplates,
   downloadDepartmentTemplate,
-  debugDepartmentMatching,
 } = require("../controller/asuulgaController");
-const excel = require("exceljs");
 const multer = require("multer");
-const mimetype = require("mime");
-const storage = multer.memoryStorage();
 const Ajiltan = require("../models/ajiltan");
-const {
-  tokenShalgakh,
-  khuudaslalt,
-  crud,
-  UstsanBarimt,
-  Segment,
-  // tsagdaaDuusakhOgnooAvya,
-} = require("zevback");
+const { crud, UstsanBarimt } = require("zevback");
 
-const fs = require("fs");
-const filter = (req, file, cb) => {
-  if (
-    file.mimetype === "image/jpeg" ||
-    file.mimetype === "image/jpg" ||
-    file.mimetype === "image/png"
-  )
-    cb(null, true);
-  else cb(null, false);
-};
-const upload = multer({
-  storage: storage,
-  fileFilter: filter,
-});
-const uploadFile = multer({
-  storage: storage,
-});
+const storage = multer.memoryStorage();
+const uploadFile = multer({ storage });
+
 crud(router, "ajiltan", Ajiltan, UstsanBarimt);
 
 router.get("/ajiltanIdgaarAvya/:id", async (req, res, next) => {
   try {
-    var asuult = await Ajiltan.findById(req.params.id).populate('departmentAssignments.departmentId', 'ner desDugaar');
-    res.send(asuult);
-  } catch (error) {
-    next(error);
-  }
-});
-router.get("/ajiltanZagvarAvya", ajiltanZagvarAvya);
-router.get("/ajiltanExport", ajiltanExport);
-router.get("/ajiltanBuhAvya", async (req, res, next) => {
-  try {
-    const ajiltanuud = await Ajiltan.findWithDepartments();
-    res.send(ajiltanuud);
+    const employee = await Ajiltan.findById(req.params.id).populate('departmentAssignments.departmentId', 'ner desDugaar');
+    res.send(employee);
   } catch (error) {
     next(error);
   }
 });
 
-// Department hierarchy routes
+router.get("/ajiltanBuhAvya", async (req, res, next) => {
+  try {
+    const employees = await Ajiltan.findWithDepartments();
+    res.send(employees);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Excel operations
+router.get("/ajiltanZagvarAvya", ajiltanZagvarAvya);
+router.get("/ajiltanExport", ajiltanExport);
+router.post("/ajiltanTatya", uploadFile.single("file"), ajiltanTatya);
+router.post("/ajiltanNemekh", ajiltanNemekh);
+
+// Department routes
 router.get("/departmentHierarchy", getDepartmentHierarchy);
 router.get("/departmentsFlat", getDepartmentsFlat);
 router.get("/departmentTemplates", getDepartmentTemplates);
 router.get("/downloadTemplate/:departmentId", downloadDepartmentTemplate);
-router.post("/debugDepartmentMatching", debugDepartmentMatching);
 
-router.post("/ajiltanTatya", uploadFile.single("file"), ajiltanTatya);
-router.post("/ajiltanNemekh", ajiltanNemekh);
-
+// Authentication
 router.post("/ajiltanNevtrey", async (req, res, next) => {
   try {
     const ajiltan = await Ajiltan.findOne()
       .where("nevtrekhNer")
       .equals(req.body.nevtrekhNer)
-      .select("+nuutsUg")
-      .catch((err) => {
-        next(err);
-      });
-    console.log(ajiltan);
-    if (!ajiltan)
+      .select("+nuutsUg");
+
+    if (!ajiltan) {
       throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
-    var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
-    if (!ok) throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
-    const jwt = await ajiltan.tokenUusgeye();
-    var butsaakhObject = {
-      token: jwt,
+    }
+
+    const isValidPassword = await ajiltan.passwordShalgaya(req.body.nuutsUg);
+    if (!isValidPassword) {
+      throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    }
+
+    const token = await ajiltan.tokenUusgeye();
+    res.send({
+      token,
       result: ajiltan,
-      success: true,
-    };
-    res.send(butsaakhObject);
+      success: true
+    });
   } catch (err) {
     next(err);
   }
 });
 
-router.post("/nuutsUgSoliyo/:id", tokenShalgakh, async (req, res, next) => {
+router.post("/nuutsUgSoliyo/:id", async (req, res, next) => {
   try {
     const ajiltan = await Ajiltan.findById(req.params.id);
     ajiltan.isNew = false;
@@ -110,4 +88,5 @@ router.post("/nuutsUgSoliyo/:id", tokenShalgakh, async (req, res, next) => {
     next(err);
   }
 });
+
 module.exports = router;
