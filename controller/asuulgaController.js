@@ -20,6 +20,37 @@ function safeTrim(value) {
   return String(value || "").trim();
 }
 
+// Check if a column contains department-like data
+function checkIfDepartmentColumn(worksheet, column, data) {
+  // Get sample values from the first few rows of this column
+  const sampleValues = [];
+  for (let i = 1; i < Math.min(6, data.length); i++) { // Check first 5 data rows
+    const cellValue = data[i][usegTooruuKhurvuulekh(column)];
+    if (cellValue && String(cellValue).trim() !== "") {
+      sampleValues.push(String(cellValue).trim());
+    }
+  }
+
+  if (sampleValues.length === 0) return false;
+
+  // Check if values look like department names or hierarchical identifiers
+  const departmentPatterns = [
+    /^\d+\.\d+/, // Pattern like "1.1", "2.3", etc.
+    /^\d+\.\d+\.\d+/, // Pattern like "1.1.1", "2.3.4", etc.
+    /^[A-Z]\d+/, // Pattern like "A1", "B2", etc.
+    /^\d+[A-Z]/, // Pattern like "1A", "2B", etc.
+    /^[А-Я]/, // Mongolian Cyrillic characters
+    /^[A-Za-z]/, // English letters
+  ];
+
+  // Check if at least 60% of sample values match department patterns
+  const matchingValues = sampleValues.filter(value => 
+    departmentPatterns.some(pattern => pattern.test(value))
+  );
+
+  return matchingValues.length >= Math.ceil(sampleValues.length * 0.6);
+}
+
 // Find department in hierarchy
 async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
   if (!departmentPath || !hierarchy || departmentPath.length === 0) return [];
@@ -30,7 +61,35 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
   for (const dept of hierarchy) {
     const deptName = safeTrim(dept.ner);
 
+    // Exact match
     if (deptName === currentDeptName) {
+      const result = [
+        {
+          level: currentLevel,
+          departmentId: dept._id,
+          departmentName: dept.ner,
+        },
+      ];
+
+      if (
+        remainingPath.length > 0 &&
+        dept.dedKhesguud &&
+        dept.dedKhesguud.length > 0
+      ) {
+        const nestedResult = await findDepartmentPath(
+          remainingPath,
+          dept.dedKhesguud,
+          currentLevel + 1
+        );
+        return result.concat(nestedResult);
+      }
+
+      return result;
+    }
+
+    // Fuzzy match - check if department name contains the search term or vice versa
+    if (deptName.toLowerCase().includes(currentDeptName.toLowerCase()) ||
+        currentDeptName.toLowerCase().includes(deptName.toLowerCase())) {
       const result = [
         {
           level: currentLevel,
@@ -113,15 +172,13 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
           columnMap.nevtrekhNer = column;
         else if (header.includes("Утас")) columnMap.utas = column;
         else {
-          const matchingDept = departmentHierarchy.find(
-            (dept) => dept.name === header
-          );
-          if (matchingDept) {
+          // Check if this column contains department-like data by examining sample values
+          const isDepartmentColumn = checkIfDepartmentColumn(worksheet, column, data);
+          if (isDepartmentColumn) {
             if (!columnMap.departments) columnMap.departments = [];
             columnMap.departments.push({
               column,
               name: header,
-              deptId: matchingDept._id,
             });
           }
         }
@@ -130,6 +187,13 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
 
     const employees = [];
     let errors = "";
+
+    // Debug: Log detected department columns
+    if (columnMap.departments) {
+      console.log("Detected department columns:", columnMap.departments);
+    } else {
+      console.log("No department columns detected");
+    }
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -155,7 +219,13 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
       // Process department assignments
       if (columnMap.departments) {
         const departmentPath = [];
-        for (const dept of columnMap.departments) {
+        
+        // Sort department columns by their hierarchical level (left to right order)
+        const sortedDepartments = columnMap.departments.sort((a, b) => {
+          return a.column.charCodeAt(0) - b.column.charCodeAt(0);
+        });
+        
+        for (const dept of sortedDepartments) {
           const deptName = row[usegTooruuKhurvuulekh(dept.column)];
           if (deptName && safeTrim(deptName) !== "") {
             departmentPath.push(safeTrim(deptName));
@@ -170,10 +240,29 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
           employee.departmentAssignments = assignments;
 
           if (assignments.length === 0) {
-            errors += `Мөр ${
-              i + 2
-            }: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
+            // Try to find at least the first department in the path
+            const flatDepartments = getAllDepartmentsFlat(allDepartments);
+            const firstDept = flatDepartments.find(d => 
+              d.ner && departmentPath[0] && 
+              (d.ner.toLowerCase().includes(departmentPath[0].toLowerCase()) ||
+               departmentPath[0].toLowerCase().includes(d.ner.toLowerCase()) ||
+               d.ner.toLowerCase() === departmentPath[0].toLowerCase())
+            );
+            
+            if (firstDept) {
+              employee.departmentAssignments = [{
+                level: firstDept.level,
+                departmentId: firstDept._id,
+                departmentName: firstDept.ner
+              }];
+            } else {
+              errors += `Мөр ${
+                i + 2
+              }: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
+            }
           }
+        } else {
+          employee.departmentAssignments = [];
         }
       }
 
