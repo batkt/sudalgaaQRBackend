@@ -271,7 +271,7 @@ router.post("/khariultKhadgalya", async (req, res, next) => {
           msgConfig.msgIlgeekhKey &&
           msgConfig.msgIlgeekhDugaar
         ) {
-          const text = `Surug setgegdel ilerlee. Kholboos: https://sudalgaa.zevtabs.mn/setgegdel/${khariult._id}`;
+          const text = `Surug setgegdel ilerlee. Kholboos: https://qr.zevtabs.mn/setgegdel/${khariult._id}`;
 
           console.log("SMS Debug - Text being sent:", text);
           console.log("SMS Debug - khariult._id:", khariult._id);
