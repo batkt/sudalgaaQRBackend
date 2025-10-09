@@ -31,7 +31,12 @@ function checkIfDepartmentColumn(worksheet, column, data) {
     }
   }
 
-  if (sampleValues.length === 0) return false;
+  console.log(`Column ${column} sample values:`, sampleValues);
+
+  if (sampleValues.length === 0) {
+    console.log(`Column ${column}: No sample values found`);
+    return false;
+  }
 
   // Check if values look like department names or hierarchical identifiers
   const departmentPatterns = [
@@ -41,6 +46,8 @@ function checkIfDepartmentColumn(worksheet, column, data) {
     /^\d+[A-Z]/, // Pattern like "1A", "2B", etc.
     /^[А-Я]/, // Mongolian Cyrillic characters
     /^[A-Za-z]/, // English letters
+    /^\d+$/, // Simple numbers like "1", "2", "3"
+    /^[A-Za-z0-9]+$/, // Alphanumeric strings
   ];
 
   // Check if at least 60% of sample values match department patterns
@@ -48,7 +55,10 @@ function checkIfDepartmentColumn(worksheet, column, data) {
     departmentPatterns.some(pattern => pattern.test(value))
   );
 
-  return matchingValues.length >= Math.ceil(sampleValues.length * 0.6);
+  const isDepartment = matchingValues.length >= Math.ceil(sampleValues.length * 0.6);
+  console.log(`Column ${column}: ${matchingValues.length}/${sampleValues.length} match, isDepartment: ${isDepartment}`);
+  
+  return isDepartment;
 }
 
 // Find department in hierarchy
@@ -112,6 +122,35 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
       }
 
       return result;
+    }
+
+    // Special case: if searching for simple numbers, try to match with department names that contain those numbers
+    if (/^\d+$/.test(currentDeptName)) {
+      const deptNameNumbers = deptName.match(/\d+/g);
+      if (deptNameNumbers && deptNameNumbers.includes(currentDeptName)) {
+        const result = [
+          {
+            level: currentLevel,
+            departmentId: dept._id,
+            departmentName: dept.ner,
+          },
+        ];
+
+        if (
+          remainingPath.length > 0 &&
+          dept.dedKhesguud &&
+          dept.dedKhesguud.length > 0
+        ) {
+          const nestedResult = await findDepartmentPath(
+            remainingPath,
+            dept.dedKhesguud,
+            currentLevel + 1
+          );
+          return result.concat(nestedResult);
+        }
+
+        return result;
+      }
     }
   }
 
@@ -180,6 +219,21 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
               column,
               name: header,
             });
+          } else {
+            // Fallback: if it's not a basic employee field and has data, treat it as department
+            const hasData = data.slice(1, 4).some(row => {
+              const value = row[usegTooruuKhurvuulekh(column)];
+              return value && String(value).trim() !== "";
+            });
+            
+            if (hasData) {
+              console.log(`Column ${column} (${header}): Treating as department column (fallback)`);
+              if (!columnMap.departments) columnMap.departments = [];
+              columnMap.departments.push({
+                column,
+                name: header,
+              });
+            }
           }
         }
       }
@@ -189,11 +243,14 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
     let errors = "";
 
     // Debug: Log detected department columns
+    console.log("=== DEBUGGING DEPARTMENT DETECTION ===");
+    console.log("Column map:", columnMap);
     if (columnMap.departments) {
       console.log("Detected department columns:", columnMap.departments);
     } else {
       console.log("No department columns detected");
     }
+    console.log("Sample data rows:", data.slice(1, 4)); // First 3 data rows
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -227,21 +284,27 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         
         for (const dept of sortedDepartments) {
           const deptName = row[usegTooruuKhurvuulekh(dept.column)];
+          console.log(`Row ${i+2}, Column ${dept.column}: "${deptName}"`);
           if (deptName && safeTrim(deptName) !== "") {
             departmentPath.push(safeTrim(deptName));
           }
         }
+        console.log(`Row ${i+2} department path:`, departmentPath);
 
         if (departmentPath.length > 0) {
+          console.log(`Row ${i+2}: Searching for department path:`, departmentPath);
           const assignments = await findDepartmentPath(
             departmentPath,
             allDepartments
           );
+          console.log(`Row ${i+2}: Found assignments:`, assignments);
           employee.departmentAssignments = assignments;
 
           if (assignments.length === 0) {
+            console.log(`Row ${i+2}: No assignments found, trying fallback...`);
             // Try to find at least the first department in the path
             const flatDepartments = getAllDepartmentsFlat(allDepartments);
+            console.log(`Row ${i+2}: Available departments:`, flatDepartments.map(d => d.ner));
             const firstDept = flatDepartments.find(d => 
               d.ner && departmentPath[0] && 
               (d.ner.toLowerCase().includes(departmentPath[0].toLowerCase()) ||
@@ -250,18 +313,21 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
             );
             
             if (firstDept) {
+              console.log(`Row ${i+2}: Found fallback department:`, firstDept.ner);
               employee.departmentAssignments = [{
                 level: firstDept.level,
                 departmentId: firstDept._id,
                 departmentName: firstDept.ner
               }];
             } else {
+              console.log(`Row ${i+2}: No fallback department found for:`, departmentPath[0]);
               errors += `Мөр ${
                 i + 2
               }: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
             }
           }
         } else {
+          console.log(`Row ${i+2}: No department path found`);
           employee.departmentAssignments = [];
         }
       }
