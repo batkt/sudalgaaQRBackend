@@ -7,6 +7,7 @@ const {
   ajiltanNemekh,
   getDepartmentHierarchy,
   getDepartmentsFlat,
+  debugDepartmentMatching,
 } = require("../controller/asuulgaController");
 const excel = require("exceljs");
 const multer = require("multer");
@@ -63,6 +64,7 @@ router.get("/ajiltanBuhAvya", async (req, res, next) => {
 // Department hierarchy routes
 router.get("/departmentHierarchy", getDepartmentHierarchy);
 router.get("/departmentsFlat", getDepartmentsFlat);
+router.post("/debugDepartmentMatching", debugDepartmentMatching);
 
 router.post("/ajiltanTatya", uploadFile.single("file"), ajiltanTatya);
 router.post("/ajiltanNemekh", ajiltanNemekh);

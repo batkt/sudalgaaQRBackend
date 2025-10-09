@@ -31,12 +31,38 @@ function isNumeric(n) {
 async function findDepartmentPathInHierarchy(departmentPath, hierarchy, currentLevel = 0) {
   if (!departmentPath || !hierarchy || departmentPath.length === 0) return [];
   
-  const currentDeptName = departmentPath[0];
+  const currentDeptName = departmentPath[0].trim();
   const remainingPath = departmentPath.slice(1);
   
-  // Search in current level
+  console.log(`Searching for: "${currentDeptName}" at level ${currentLevel}`);
+  console.log(`Available departments at this level:`, hierarchy.map(d => d.ner));
+  
+  // Search in current level with fuzzy matching
   for (const dept of hierarchy) {
-    if (dept.ner === currentDeptName) {
+    const deptName = dept.ner.trim();
+    
+    // Exact match
+    if (deptName === currentDeptName) {
+      console.log(`Found exact match: ${deptName}`);
+      const result = [{
+        level: currentLevel,
+        departmentId: dept._id,
+        departmentName: dept.ner
+      }];
+      
+      // If there are more levels to search, continue in nested structure
+      if (remainingPath.length > 0 && dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+        const nestedResult = await findDepartmentPathInHierarchy(remainingPath, dept.dedKhesguud, currentLevel + 1);
+        return result.concat(nestedResult);
+      }
+      
+      return result;
+    }
+    
+    // Fuzzy match (contains)
+    if (deptName.toLowerCase().includes(currentDeptName.toLowerCase()) || 
+        currentDeptName.toLowerCase().includes(deptName.toLowerCase())) {
+      console.log(`Found fuzzy match: "${deptName}" for "${currentDeptName}"`);
       const result = [{
         level: currentLevel,
         departmentId: dept._id,
@@ -53,6 +79,7 @@ async function findDepartmentPathInHierarchy(departmentPath, hierarchy, currentL
     }
   }
   
+  console.log(`No match found for: "${currentDeptName}" at level ${currentLevel}`);
   return [];
 }
 
@@ -318,6 +345,40 @@ exports.getDepartmentsFlat = asyncHandler(async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: flatDepartments
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Debug endpoint to test department matching
+exports.debugDepartmentMatching = asyncHandler(async (req, res, next) => {
+  try {
+    const { departmentPath } = req.body;
+    
+    if (!departmentPath || !Array.isArray(departmentPath)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide departmentPath as an array"
+      });
+    }
+
+    const allDepartments = await Buleg.find({});
+    const flatDepartments = await getAllDepartmentsFlat();
+    
+    console.log("Testing department path:", departmentPath);
+    console.log("Available departments:", flatDepartments.map(d => ({ name: d.ner, level: d.level })));
+    
+    const result = await findDepartmentPathInHierarchy(departmentPath, allDepartments);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        inputPath: departmentPath,
+        foundPath: result,
+        availableDepartments: flatDepartments,
+        allHierarchy: allDepartments
+      }
     });
   } catch (error) {
     next(error);
