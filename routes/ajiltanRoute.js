@@ -9,7 +9,6 @@ const {
   getDepartmentsFlat,
   getDepartmentTemplates,
   downloadDepartmentTemplate,
-  debugDepartmentMatching,
 } = require("../controller/asuulgaController");
 const multer = require("multer");
 const Ajiltan = require("../models/ajiltan");
@@ -49,7 +48,6 @@ router.get("/departmentHierarchy", getDepartmentHierarchy);
 router.get("/departmentsFlat", getDepartmentsFlat);
 router.get("/departmentTemplates", getDepartmentTemplates);
 router.get("/downloadTemplate/:departmentId", downloadDepartmentTemplate);
-router.post("/debugDepartmentMatching", debugDepartmentMatching);
 
 // Authentication
 router.post("/ajiltanNevtrey", async (req, res, next) => {
