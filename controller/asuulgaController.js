@@ -318,10 +318,12 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         });
 
         for (const dept of sortedDepartments) {
-          const deptName = row[usegTooruuKhurvuulekh(dept.column)];
-          console.log(`Row ${i + 2}, Column ${dept.column}: "${deptName}"`);
-          if (deptName && safeTrim(deptName) !== "") {
-            departmentPath.push(safeTrim(deptName));
+          const cellValue = row[usegTooruuKhurvuulekh(dept.column)];
+          console.log(`Row ${i + 2}, Column ${dept.column}: "${cellValue}"`);
+          // Check if the cell has a value (indicating this department is selected)
+          if (cellValue && safeTrim(cellValue) !== "") {
+            // Use the column header (department name) instead of cell value
+            departmentPath.push(safeTrim(dept.name));
           }
         }
         console.log(`Row ${i + 2} department path:`, departmentPath);
