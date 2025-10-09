@@ -27,10 +27,14 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
   const currentDeptName = safeTrim(departmentPath[0]);
   const remainingPath = departmentPath.slice(1);
 
+  console.log(`Searching for: "${currentDeptName}" at level ${currentLevel}`);
+  console.log(`Available departments:`, hierarchy.map(d => d.ner));
+
   for (const dept of hierarchy) {
     const deptName = safeTrim(dept.ner);
 
     if (deptName === currentDeptName) {
+      console.log(`Found match: ${deptName}`);
       const result = [
         {
           level: currentLevel,
@@ -56,6 +60,7 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
     }
   }
 
+  console.log(`No match found for: "${currentDeptName}"`);
   return [];
 }
 
@@ -152,30 +157,32 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         nuutsUg: "123",
       });
 
-      // Process department assignments
-      if (columnMap.departments) {
-        const departmentPath = [];
-        for (const dept of columnMap.departments) {
-          const deptName = row[usegTooruuKhurvuulekh(dept.column)];
-          if (deptName && safeTrim(deptName) !== "") {
-            departmentPath.push(safeTrim(deptName));
+        // Process department assignments
+        if (columnMap.departments) {
+          const departmentPath = [];
+          for (const dept of columnMap.departments) {
+            const deptName = row[usegTooruuKhurvuulekh(dept.column)];
+            if (deptName && safeTrim(deptName) !== "") {
+              departmentPath.push(safeTrim(deptName));
+            }
+          }
+
+          if (departmentPath.length > 0) {
+            const assignments = await findDepartmentPath(
+              departmentPath,
+              allDepartments
+            );
+            employee.departmentAssignments = assignments;
+
+            if (assignments.length === 0) {
+              errors += `Мөр ${
+                i + 2
+              }: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
+            } else {
+              console.log(`Found assignments for ${employee.ner}:`, assignments);
+            }
           }
         }
-
-        if (departmentPath.length > 0) {
-          const assignments = await findDepartmentPath(
-            departmentPath,
-            allDepartments
-          );
-          employee.departmentAssignments = assignments;
-
-          if (assignments.length === 0) {
-            errors += `Мөр ${
-              i + 2
-            }: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
-          }
-        }
-      }
 
       employees.push(employee);
     }
@@ -345,6 +352,34 @@ exports.getDepartmentTemplates = asyncHandler(async (req, res, next) => {
     }));
 
     res.status(200).json({ success: true, data: templates });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Debug endpoint to test department matching
+exports.debugDepartmentMatching = asyncHandler(async (req, res, next) => {
+  try {
+    const { departmentPath } = req.body;
+    
+    if (!departmentPath || !Array.isArray(departmentPath)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide departmentPath as an array"
+      });
+    }
+
+    const allDepartments = await Buleg.find({});
+    const result = await findDepartmentPath(departmentPath, allDepartments);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        inputPath: departmentPath,
+        foundPath: result,
+        allDepartments: allDepartments
+      }
+    });
   } catch (error) {
     next(error);
   }
