@@ -39,7 +39,8 @@ async function findDepartmentPathInHierarchy(departmentPath, hierarchy, currentL
   
   // Search in current level with fuzzy matching
   for (const dept of hierarchy) {
-    const deptName = dept.ner.trim();
+    // Ensure dept.ner is a string before calling trim
+    const deptName = (dept.ner && typeof dept.ner === 'string') ? dept.ner.trim() : String(dept.ner || '').trim();
     
     // Exact match
     if (deptName === currentDeptName) {
@@ -59,23 +60,25 @@ async function findDepartmentPathInHierarchy(departmentPath, hierarchy, currentL
       return result;
     }
     
-    // Fuzzy match (contains)
-    if (deptName.toLowerCase().includes(currentDeptName.toLowerCase()) || 
-        currentDeptName.toLowerCase().includes(deptName.toLowerCase())) {
-      console.log(`Found fuzzy match: "${deptName}" for "${currentDeptName}"`);
-      const result = [{
-        level: currentLevel,
-        departmentId: dept._id,
-        departmentName: dept.ner
-      }];
-      
-      // If there are more levels to search, continue in nested structure
-      if (remainingPath.length > 0 && dept.dedKhesguud && dept.dedKhesguud.length > 0) {
-        const nestedResult = await findDepartmentPathInHierarchy(remainingPath, dept.dedKhesguud, currentLevel + 1);
-        return result.concat(nestedResult);
+    // Fuzzy match (contains) - only if both are strings
+    if (typeof deptName === 'string' && typeof currentDeptName === 'string') {
+      if (deptName.toLowerCase().includes(currentDeptName.toLowerCase()) || 
+          currentDeptName.toLowerCase().includes(deptName.toLowerCase())) {
+        console.log(`Found fuzzy match: "${deptName}" for "${currentDeptName}"`);
+        const result = [{
+          level: currentLevel,
+          departmentId: dept._id,
+          departmentName: dept.ner
+        }];
+        
+        // If there are more levels to search, continue in nested structure
+        if (remainingPath.length > 0 && dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+          const nestedResult = await findDepartmentPathInHierarchy(remainingPath, dept.dedKhesguud, currentLevel + 1);
+          return result.concat(nestedResult);
+        }
+        
+        return result;
       }
-      
-      return result;
     }
   }
   
@@ -92,8 +95,8 @@ async function getAllDepartmentsFlat() {
     for (const dept of departments) {
       flatDepartments.push({
         _id: dept._id,
-        ner: dept.ner,
-        desDugaar: dept.desDugaar,
+        ner: (dept.ner && typeof dept.ner === 'string') ? dept.ner : String(dept.ner || ''),
+        desDugaar: (dept.desDugaar && typeof dept.desDugaar === 'string') ? dept.desDugaar : String(dept.desDugaar || ''),
         level: level
       });
       
