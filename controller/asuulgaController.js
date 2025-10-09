@@ -210,6 +210,41 @@ function getAllDepartmentsFlat(allDepartments) {
   return flatDepartments;
 }
 
+// Find parent departments for a given department
+function findParentDepartments(targetDept, allDepartments, currentPath = []) {
+  const parents = [];
+
+  function searchParents(dept, level = 0) {
+    if (dept._id.toString() === targetDept._id.toString()) {
+      // Found the target department, return the current path as parents
+      return currentPath.map((parent, index) => ({
+        _id: parent._id,
+        ner: parent.ner,
+        level: index,
+      }));
+    }
+
+    if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+      for (const subDept of dept.dedKhesguud) {
+        const result = searchParents(subDept, level + 1, [
+          ...currentPath,
+          dept,
+        ]);
+        if (result) return result;
+      }
+    }
+
+    return null;
+  }
+
+  for (const dept of allDepartments) {
+    const result = searchParents(dept);
+    if (result) return result;
+  }
+
+  return [];
+}
+
 // Excel Import
 exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
   try {
@@ -288,6 +323,52 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
     }
     console.log("Sample data rows:", data.slice(1, 4)); // First 3 data rows
 
+    // Force detect all columns that look like departments
+    if (!columnMap.departments) {
+      columnMap.departments = [];
+    }
+
+    // Check all columns for department-like headers
+    for (let cell in worksheet) {
+      const cellStr = cell.toString();
+      if (cellStr[1] === "1" && cellStr.length === 2 && worksheet[cellStr].v) {
+        const header = worksheet[cellStr].v.toString();
+        const column = cellStr[0];
+
+        // Skip basic employee fields
+        if (
+          header.includes("Овог") ||
+          header.includes("Нэр") ||
+          header.includes("Регистр") ||
+          header.includes("Хувийн дугаар") ||
+          header.includes("Утас")
+        ) {
+          continue;
+        }
+
+        // Check if this looks like a department name
+        const isDepartmentLike =
+          /^\d+\.\d+/.test(header) ||
+          /^\d+-р түвшин/.test(header) ||
+          /^[А-Я]/.test(header);
+
+        if (isDepartmentLike) {
+          const existingDept = columnMap.departments.find(
+            (d) => d.column === column
+          );
+          if (!existingDept) {
+            columnMap.departments.push({
+              column: column,
+              name: header,
+            });
+            console.log(`Added department column: ${column} -> ${header}`);
+          }
+        }
+      }
+    }
+
+    console.log("Final department columns:", columnMap.departments);
+
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
 
@@ -309,28 +390,76 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         nuutsUg: "123",
       });
 
-      // Process department assignments - Simple approach
+      // Process department assignments - Include parent departments
       employee.departmentAssignments = [];
+      console.log(`\n=== Processing Row ${i + 2} (${employee.ner}) ===`);
 
       if (columnMap.departments) {
         const flatDepartments = getAllDepartmentsFlat(allDepartments);
+        const assignedDeptIds = new Set(); // To avoid duplicates
+
+        console.log(
+          `Available departments:`,
+          flatDepartments.map((d) => d.ner)
+        );
+        console.log(`Department columns to check:`, columnMap.departments);
 
         for (const dept of columnMap.departments) {
           const cellValue = row[usegTooruuKhurvuulekh(dept.column)];
+          console.log(`Column ${dept.column} (${dept.name}): "${cellValue}"`);
 
-          // If cell has value, find matching department
+          // If cell has value, find matching department and its parents
           if (cellValue && safeTrim(cellValue) !== "") {
+            console.log(`Looking for department: ${dept.name}`);
             const foundDept = flatDepartments.find((d) => d.ner === dept.name);
+            console.log(`Found department:`, foundDept);
 
             if (foundDept) {
-              employee.departmentAssignments.push({
-                level: foundDept.level,
-                departmentId: foundDept._id,
-                departmentName: foundDept.ner,
-              });
+              // Add the department itself
+              if (!assignedDeptIds.has(foundDept._id.toString())) {
+                employee.departmentAssignments.push({
+                  level: foundDept.level,
+                  departmentId: foundDept._id,
+                  departmentName: foundDept.ner,
+                });
+                assignedDeptIds.add(foundDept._id.toString());
+                console.log(
+                  `Added department: ${foundDept.ner} (level ${foundDept.level})`
+                );
+              }
+
+              // Add all parent departments
+              const parentPath = findParentDepartments(
+                foundDept,
+                allDepartments
+              );
+              console.log(`Parent path for ${foundDept.ner}:`, parentPath);
+
+              for (const parent of parentPath) {
+                if (!assignedDeptIds.has(parent._id.toString())) {
+                  employee.departmentAssignments.push({
+                    level: parent.level,
+                    departmentId: parent._id,
+                    departmentName: parent.ner,
+                  });
+                  assignedDeptIds.add(parent._id.toString());
+                  console.log(
+                    `Added parent: ${parent.ner} (level ${parent.level})`
+                  );
+                }
+              }
+            } else {
+              console.log(`Department not found: ${dept.name}`);
             }
           }
         }
+
+        console.log(
+          `Final assignments for ${employee.ner}:`,
+          employee.departmentAssignments.map((a) => a.departmentName)
+        );
+      } else {
+        console.log(`No department columns detected for ${employee.ner}`);
       }
 
       employees.push(employee);
