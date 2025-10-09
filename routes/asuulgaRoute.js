@@ -6,7 +6,7 @@ const Irts = require("../models/irts");
 const TulkhuurUg = require("../models/tulkhuurUg");
 const Ajiltan = require("../models/ajiltan");
 const Tokhirgoo = require("../models/tokhirgoo");
-const Zardal = require("../models/zardal");
+const Buleg = require("../models/buleg");
 const request = require("request");
 const jwt = require("jsonwebtoken");
 const {
@@ -26,7 +26,7 @@ crud(router, "khariult", Khariult, UstsanBarimt);
 crud(router, "irts", Irts, UstsanBarimt);
 crud(router, "tulkhuurUg", TulkhuurUg, UstsanBarimt);
 crud(router, "tokhirgoo", Tokhirgoo, UstsanBarimt);
-crud(router, "zardal", Zardal, UstsanBarimt);
+crud(router, "buleg", Buleg, UstsanBarimt);
 
 router.get("/public/khariult/:id", async (req, res, next) => {
   try {

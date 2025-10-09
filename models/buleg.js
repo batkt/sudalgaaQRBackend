@@ -10,7 +10,7 @@ const dedSchema = new Schema({
 
 dedSchema.add({ dedKhesguud: [dedSchema] });
 
-const zardalSchema = new Schema(
+const bulegSchema = new Schema(
   {
     desDugaar: String,
     ner: String,
@@ -23,5 +23,4 @@ const zardalSchema = new Schema(
   }
 );
 
-module.exports = mongoose.model("zardal", zardalSchema);
-
+module.exports = mongoose.model("buleg", bulegSchema);
