@@ -100,7 +100,8 @@ async function findDepartmentPathInHierarchy(
     if (typeof deptName === "string" && typeof currentDeptName === "string") {
       if (
         deptName.toLowerCase().includes(currentDeptName.toLowerCase()) ||
-        currentDeptName.toLowerCase().includes(deptName.toLowerCase())
+        currentDeptName.toLowerCase().includes(deptName.toLowerCase()) ||
+        deptName.toLowerCase() === currentDeptName.toLowerCase()
       ) {
         console.log(
           `Found fuzzy match: "${deptName}" for "${currentDeptName}"`
@@ -183,14 +184,7 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
       throw new Error("Буруу файл байна!");
 
     // Required basic fields
-    const requiredFields = [
-      "Овог",
-      "Нэр",
-      "Регистр",
-      "Хувийн дугаар",
-      "Утас",
-      "Нэр дуудлага",
-    ];
+    const requiredFields = ["Овог", "Нэр", "Регистр", "Хувийн дугаар", "Утас"];
     const missingFields = requiredFields.filter(
       (field) =>
         !Object.values(worksheet).some(
@@ -232,10 +226,6 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
           tolgoinObject.nevtrekhNer = cellAsString[0];
         else if (headerValue.includes("Утас"))
           tolgoinObject.utas = cellAsString[0];
-        else if (headerValue.includes("Нэр дуудлага"))
-          tolgoinObject.porool = cellAsString[0];
-        else if (headerValue.includes("Зургийн ID"))
-          tolgoinObject.zurgiinId = cellAsString[0];
         // Map department fields dynamically
         else if (
           headerValue.includes("Хэсэг") ||
@@ -280,8 +270,10 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
       // Process department assignments
       const departmentPath = [];
       if (tolgoinObject.departments) {
+        console.log(`Мөр ${muriinDugaar}: Processing departments:`, tolgoinObject.departments);
         for (const dept of tolgoinObject.departments) {
           const deptName = mur[usegTooruuKhurvuulekh(dept.column)];
+          console.log(`Мөр ${muriinDugaar}: Department column ${dept.column} value:`, deptName);
           if (
             deptName &&
             typeof deptName === "string" &&
@@ -296,21 +288,55 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
             }
           }
         }
+        console.log(`Мөр ${muriinDugaar}: Final department path:`, departmentPath);
+      } else {
+        console.log(`Мөр ${muriinDugaar}: No department columns found in template`);
       }
 
       // Find department assignments in hierarchy
       if (departmentPath.length > 0) {
-        const departmentAssignments = await findDepartmentPathInHierarchy(
-          departmentPath,
-          allDepartments
-        );
-        object.departmentAssignments = departmentAssignments;
+        try {
+          const departmentAssignments = await findDepartmentPathInHierarchy(
+            departmentPath,
+            allDepartments
+          );
+          object.departmentAssignments = departmentAssignments;
 
-        if (departmentAssignments.length === 0) {
-          aldaaniiMsg += `Мөр ${muriinDugaar}: Хэсгийн зам олдсонгүй: ${departmentPath.join(
-            " > "
-          )}\n`;
+          if (departmentAssignments.length === 0) {
+            // Try to find at least the first department in the path
+            const flatDepartments = await getAllDepartmentsFlat();
+            const firstDept = flatDepartments.find(d => 
+              d.ner && departmentPath[0] && 
+              (d.ner.toLowerCase().includes(departmentPath[0].toLowerCase()) ||
+               departmentPath[0].toLowerCase().includes(d.ner.toLowerCase()) ||
+               d.ner.toLowerCase() === departmentPath[0].toLowerCase())
+            );
+            
+            if (firstDept) {
+              object.departmentAssignments = [{
+                level: firstDept.level,
+                departmentId: firstDept._id,
+                departmentName: firstDept.ner
+              }];
+              console.log(`Мөр ${muriinDugaar}: Found partial match for first department:`, firstDept.ner);
+            } else {
+              aldaaniiMsg += `Мөр ${muriinDugaar}: Хэсгийн зам олдсонгүй: ${departmentPath.join(
+                " > "
+              )}\n`;
+              console.log(`Мөр ${muriinDugaar}: Department path not found:`, departmentPath);
+            }
+          } else {
+            console.log(`Мөр ${muriinDugaar}: Found department assignments:`, departmentAssignments);
+          }
+        } catch (error) {
+          console.error(`Мөр ${muriinDugaar}: Error finding department assignments:`, error);
+          object.departmentAssignments = [];
+          aldaaniiMsg += `Мөр ${muriinDugaar}: Хэсгийн мэдээлэл боловсруулах алдаа: ${error.message}\n`;
         }
+      } else {
+        // If no department path found, initialize empty array
+        object.departmentAssignments = [];
+        console.log(`Мөр ${muriinDugaar}: Хэсгийн мэдээлэл олдсонгүй`);
       }
 
       jagsaalt.push(object);
