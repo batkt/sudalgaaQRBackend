@@ -95,7 +95,9 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
           dept.dedKhesguud,
           currentLevel + 1
         );
-        return result.concat(nestedResult);
+        if (nestedResult.length > 0) {
+          return result.concat(nestedResult);
+        }
       }
 
       return result;
@@ -124,7 +126,9 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
           dept.dedKhesguud,
           currentLevel + 1
         );
-        return result.concat(nestedResult);
+        if (nestedResult.length > 0) {
+          return result.concat(nestedResult);
+        }
       }
 
       return result;
@@ -152,10 +156,24 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
             dept.dedKhesguud,
             currentLevel + 1
           );
-          return result.concat(nestedResult);
+          if (nestedResult.length > 0) {
+            return result.concat(nestedResult);
+          }
         }
 
         return result;
+      }
+    }
+
+    // If no match found at current level, search in sub-departments
+    if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+      const nestedResult = await findDepartmentPath(
+        departmentPath,
+        dept.dedKhesguud,
+        currentLevel + 1
+      );
+      if (nestedResult.length > 0) {
+        return nestedResult;
       }
     }
   }
@@ -318,9 +336,14 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
             allDepartments
           );
           console.log(`Row ${i + 2}: Found assignments:`, assignments);
-          employee.departmentAssignments = assignments;
 
-          if (assignments.length === 0) {
+          if (assignments.length > 0) {
+            employee.departmentAssignments = assignments;
+            console.log(
+              `Row ${i + 2}: Successfully assigned departments:`,
+              assignments.map((a) => a.departmentName)
+            );
+          } else {
             console.log(
               `Row ${i + 2}: No assignments found, trying fallback...`
             );
@@ -360,6 +383,7 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
                 `Row ${i + 2}: No fallback department found for:`,
                 departmentPath[0]
               );
+              employee.departmentAssignments = [];
               errors += `Мөр ${
                 i + 2
               }: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
