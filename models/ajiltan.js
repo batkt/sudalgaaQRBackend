@@ -73,7 +73,7 @@ AjiltanModel.estimatedDocumentCount().then((count) => {
         nevtrekhNer: "Admin",
         utas: "Admin",
         mail: "Admin",
-        erkh: "Admin",
+        erkh: "superAdmin",
         register: "Admin",
         albanTushaal: "Admin",
         nuutsUg: "123",
