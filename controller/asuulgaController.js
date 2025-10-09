@@ -1,6 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const excel = require("exceljs");
 const Ajiltan = require("../models/ajiltan");
+const Buleg = require("../models/buleg");
 const xlsx = require("xlsx");
 
 function usegTooruuKhurvuulekh(useg) {
@@ -26,6 +27,59 @@ function isNumeric(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
 }
 
+// Helper function to find department in nested structure and return path info
+async function findDepartmentPathInHierarchy(departmentPath, hierarchy, currentLevel = 0) {
+  if (!departmentPath || !hierarchy || departmentPath.length === 0) return [];
+  
+  const currentDeptName = departmentPath[0];
+  const remainingPath = departmentPath.slice(1);
+  
+  // Search in current level
+  for (const dept of hierarchy) {
+    if (dept.ner === currentDeptName) {
+      const result = [{
+        level: currentLevel,
+        departmentId: dept._id,
+        departmentName: dept.ner
+      }];
+      
+      // If there are more levels to search, continue in nested structure
+      if (remainingPath.length > 0 && dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+        const nestedResult = await findDepartmentPathInHierarchy(remainingPath, dept.dedKhesguud, currentLevel + 1);
+        return result.concat(nestedResult);
+      }
+      
+      return result;
+    }
+  }
+  
+  return [];
+}
+
+// Helper function to get all departments in a flat structure for easy searching
+async function getAllDepartmentsFlat() {
+  const allDepartments = await Buleg.find({});
+  const flatDepartments = [];
+  
+  function flattenDepartments(departments, level = 0) {
+    for (const dept of departments) {
+      flatDepartments.push({
+        _id: dept._id,
+        ner: dept.ner,
+        desDugaar: dept.desDugaar,
+        level: level
+      });
+      
+      if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+        flattenDepartments(dept.dedKhesguud, level + 1);
+      }
+    }
+  }
+  
+  flattenDepartments(allDepartments);
+  return flatDepartments;
+}
+
 exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
   try {
     const workbook = xlsx.read(req.file.buffer);
@@ -36,23 +90,26 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
       header: 1,
       range: 1,
     });
+    
     if (workbook.SheetNames[0] != "Ажилтан")
       throw new Error("Буруу файл байна!");
-    if (
-      !worksheet["A1"]?.v?.includes("Дүүрэг") ||
-      !worksheet["B1"]?.v?.includes("Хэлтэс") ||
-      !worksheet["C1"]?.v?.includes("Тасаг") ||
-      !worksheet["D1"]?.v?.includes("Албан тушаал") ||
-      !worksheet["E1"]?.v?.includes("Цол") ||
-      !worksheet["F1"]?.v?.includes("Овог") ||
-      !worksheet["G1"]?.v?.includes("Нэр") ||
-      !worksheet["H1"]?.v?.includes("Регистр") ||
-      !worksheet["I1"]?.v?.includes("Хувийн дугаар") ||
-      !worksheet["J1"]?.v?.includes("Утас") ||
-      !worksheet["K1"]?.v?.includes("Нэр дуудлага")
-    ) {
-      throw new Error("Та загварын дагуу бөглөөгүй байна!");
+
+    // Required basic fields
+    const requiredFields = ["Овог", "Нэр", "Регистр", "Хувийн дугаар", "Утас", "Нэр дуудлага"];
+    const missingFields = requiredFields.filter(field => 
+      !Object.values(worksheet).some(cell => 
+        cell.v && cell.v.toString().includes(field)
+      )
+    );
+    
+    if (missingFields.length > 0) {
+      throw new Error(`Та загварын дагуу бөглөөгүй байна! Дутуу талбар: ${missingFields.join(", ")}`);
     }
+
+    // Get all departments for mapping
+    const allDepartments = await Buleg.find({});
+    
+    // Map column headers to column letters
     for (let cell in worksheet) {
       const cellAsString = cell.toString();
       if (
@@ -60,55 +117,93 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         cellAsString.length == 2 &&
         !!worksheet[cellAsString].v
       ) {
-        if (worksheet[cellAsString].v === "Дүүрэг")
-          tolgoinObject.duureg = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Хэлтэс")
-          tolgoinObject.kheltes = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Тасаг")
-          tolgoinObject.tasag = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Албан тушаал")
-          tolgoinObject.albanTushaal = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Цол")
-          tolgoinObject.tsol = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Овог")
+        const headerValue = worksheet[cellAsString].v.toString();
+        
+        // Map basic employee fields
+        if (headerValue.includes("Овог"))
           tolgoinObject.ovog = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Нэр")
+        else if (headerValue.includes("Нэр") && !headerValue.includes("дуудлага"))
           tolgoinObject.ner = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Регистр")
+        else if (headerValue.includes("Регистр"))
           tolgoinObject.register = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Хувийн дугаар")
+        else if (headerValue.includes("Хувийн дугаар"))
           tolgoinObject.nevtrekhNer = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Утас")
+        else if (headerValue.includes("Утас"))
           tolgoinObject.utas = cellAsString[0];
-        else if (worksheet[cellAsString].v === "Нэр дуудлага")
+        else if (headerValue.includes("Нэр дуудлага"))
           tolgoinObject.porool = cellAsString[0];
+        else if (headerValue.includes("Зургийн ID"))
+          tolgoinObject.zurgiinId = cellAsString[0];
+        // Map department fields dynamically
+        else if (headerValue.includes("Хэсэг") || headerValue.includes("Департамент")) {
+          if (!tolgoinObject.departments) tolgoinObject.departments = [];
+          tolgoinObject.departments.push({
+            column: cellAsString[0],
+            name: headerValue
+          });
+        }
       }
     }
+
     var aldaaniiMsg = "";
     var muriinDugaar = 1;
 
     for await (const mur of data) {
       muriinDugaar++;
+      
+      // Skip empty rows
+      if (!mur[usegTooruuKhurvuulekh(tolgoinObject.ner)] && !mur[usegTooruuKhurvuulekh(tolgoinObject.register)]) {
+        continue;
+      }
+
       let object = new Ajiltan();
-      object.duureg = mur[usegTooruuKhurvuulekh(tolgoinObject.duureg)];
-      object.kheltes = mur[usegTooruuKhurvuulekh(tolgoinObject.kheltes)];
-      object.tasag = mur[usegTooruuKhurvuulekh(tolgoinObject.tasag)];
-      object.albanTushaal =
-        mur[usegTooruuKhurvuulekh(tolgoinObject.albanTushaal)];
-      object.tsol = mur[usegTooruuKhurvuulekh(tolgoinObject.tsol)];
+      
+      // Set basic employee information
       object.ovog = mur[usegTooruuKhurvuulekh(tolgoinObject.ovog)];
       object.ner = mur[usegTooruuKhurvuulekh(tolgoinObject.ner)];
       object.register = mur[usegTooruuKhurvuulekh(tolgoinObject.register)];
       object.utas = mur[usegTooruuKhurvuulekh(tolgoinObject.utas)];
-      object.nevtrekhNer =
-        mur[usegTooruuKhurvuulekh(tolgoinObject.nevtrekhNer)];
+      object.nevtrekhNer = mur[usegTooruuKhurvuulekh(tolgoinObject.nevtrekhNer)];
       object.porool = mur[usegTooruuKhurvuulekh(tolgoinObject.porool)];
+      object.zurgiinId = mur[usegTooruuKhurvuulekh(tolgoinObject.zurgiinId)];
+      object.nuutsUg = "123";
+
+      // Process department assignments
+      const departmentPath = [];
+      if (tolgoinObject.departments) {
+        for (const dept of tolgoinObject.departments) {
+          const deptName = mur[usegTooruuKhurvuulekh(dept.column)];
+          if (deptName && deptName.trim() !== "") {
+            departmentPath.push(deptName.trim());
+          }
+        }
+      }
+
+      // Find department assignments in hierarchy
+      if (departmentPath.length > 0) {
+        const departmentAssignments = await findDepartmentPathInHierarchy(departmentPath, allDepartments);
+        object.departmentAssignments = departmentAssignments;
+        
+        if (departmentAssignments.length === 0) {
+          aldaaniiMsg += `Мөр ${muriinDugaar}: Хэсгийн зам олдсонгүй: ${departmentPath.join(" > ")}\n`;
+        }
+      }
+
       jagsaalt.push(object);
     }
-    if (aldaaniiMsg) throw new aldaa(aldaaniiMsg);
+    
+    if (aldaaniiMsg) {
+      console.log("Алдаанууд:", aldaaniiMsg);
+    }
+    
     Ajiltan.insertMany(jagsaalt)
       .then((result) => {
-        res.status(200).send("Amjilttai");
+        res.status(200).json({
+          success: true,
+          message: "Амжилттай импорт хийгдлээ",
+          imported: result.length,
+          errors: aldaaniiMsg || null
+        });
       })
       .catch((err) => {
         next(err);
@@ -119,84 +214,184 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
 });
 
 exports.ajiltanZagvarAvya = asyncHandler(async (req, res, next) => {
-  let workbook = new excel.Workbook();
-  let worksheet = workbook.addWorksheet("Ажилтан");
-  var baganuud = [
-    {
-      header: "Дүүрэг",
-      key: "Дүүрэг",
-      width: 20,
-    },
-    {
-      header: "Хэлтэс",
-      key: "Хэлтэс",
-      width: 20,
-    },
-    {
-      header: "Тасаг",
-      key: "Тасаг",
-      width: 20,
-    },
-    {
-      header: "Албан тушаал",
-      key: "Албан тушаал",
-      width: 20,
-    },
-    {
-      header: "Цол",
-      key: "Цол",
-      width: 30,
-    },
-    {
-      header: "Овог",
-      key: "Овог",
-      width: 30,
-    },
-    {
-      header: "Нэр",
-      key: "Нэр",
-      width: 20,
-    },
-    {
-      header: "Регистр",
-      key: "Регистр",
-      width: 20,
-    },
-    {
-      header: "Хувийн дугаар",
-      key: "Хувийн дугаар",
-      width: 20,
-    },
-    {
-      header: "Утас",
-      key: "Утас",
-      width: 20,
-    },
-    {
-      header: "Нэр дуудлага",
-      key: "Нэр дуудлага",
-      width: 20,
-    },
-  ];
-  worksheet.columns = baganuud;
-  res.setHeader(
-    "Content-Type",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  );
+  try {
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Ажилтан");
+    
+    // Get department hierarchy to create dynamic columns
+    const allDepartments = await Buleg.find({});
+    const flatDepartments = await getAllDepartmentsFlat();
+    
+    // Create basic employee columns
+    var baganuud = [
+      {
+        header: "Овог",
+        key: "Овог",
+        width: 20,
+      },
+      {
+        header: "Нэр",
+        key: "Нэр",
+        width: 20,
+      },
+      {
+        header: "Регистр",
+        key: "Регистр",
+        width: 20,
+      },
+      {
+        header: "Хувийн дугаар",
+        key: "Хувийн дугаар",
+        width: 20,
+      },
+      {
+        header: "Утас",
+        key: "Утас",
+        width: 20,
+      },
+      {
+        header: "Нэр дуудлага",
+        key: "Нэр дуудлага",
+        width: 20,
+      },
+      {
+        header: "Зургийн ID",
+        key: "Зургийн ID",
+        width: 20,
+      }
+    ];
 
-  return workbook.xlsx.write(res).then(function () {
-    res.status(200).end();
-  });
+    // Add dynamic department columns based on hierarchy levels
+    const maxLevel = Math.max(...flatDepartments.map(dept => dept.level));
+    for (let level = 0; level <= maxLevel; level++) {
+      baganuud.push({
+        header: `Хэсэг ${level + 1}`,
+        key: `Хэсэг ${level + 1}`,
+        width: 25,
+      });
+    }
+
+    worksheet.columns = baganuud;
+    
+    // Add instruction row
+    worksheet.addRow([
+      "Зааварчилгаа:",
+      "1. Хэсгийн багана нь иерархийн дарааллаар бөглөнө үү (жишээ: 1.1, 1.2, 1.3)",
+      "2. Хэрэв ажилтан цөөн түвшинд байвал үлдсэн баганыг хоосон үлдээнэ үү",
+      "3. Бүх заавал бөглөх талбарыг бөглөнө үү"
+    ]);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=ajiltan_template.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(function () {
+      res.status(200).end();
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get department hierarchy structure
+exports.getDepartmentHierarchy = asyncHandler(async (req, res, next) => {
+  try {
+    const allDepartments = await Buleg.find({});
+    res.status(200).json({
+      success: true,
+      data: allDepartments
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get flat department list for easy selection
+exports.getDepartmentsFlat = asyncHandler(async (req, res, next) => {
+  try {
+    const flatDepartments = await getAllDepartmentsFlat();
+    res.status(200).json({
+      success: true,
+      data: flatDepartments
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export employees with department information
+exports.ajiltanExport = asyncHandler(async (req, res, next) => {
+  try {
+    const employees = await Ajiltan.findWithDepartments();
+    const flatDepartments = await getAllDepartmentsFlat();
+    const maxLevel = Math.max(...flatDepartments.map(dept => dept.level));
+    
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Ажилтан");
+    
+    // Create headers
+    const headers = [
+      "Овог", "Нэр", "Регистр", "Хувийн дугаар", "Утас", "Нэр дуудлага", "Зургийн ID"
+    ];
+    
+    // Add dynamic department headers
+    for (let level = 0; level <= maxLevel; level++) {
+      headers.push(`Хэсэг ${level + 1}`);
+    }
+    
+    worksheet.addRow(headers);
+    
+    // Add employee data
+    employees.forEach(employee => {
+      const row = [
+        employee.ovog,
+        employee.ner,
+        employee.register,
+        employee.nevtrekhNer,
+        employee.utas,
+        employee.porool,
+        employee.zurgiinId
+      ];
+      
+      // Add department information
+      const departmentPath = employee.departmentAssignments
+        .sort((a, b) => a.level - b.level)
+        .map(dept => dept.departmentName);
+      
+      // Fill department columns
+      for (let level = 0; level <= maxLevel; level++) {
+        row.push(departmentPath[level] || "");
+      }
+      
+      worksheet.addRow(row);
+    });
+    
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=ajiltanuud.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(function () {
+      res.status(200).end();
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 exports.ajiltanNemekh = asyncHandler(async (req, res, next) => {
   try {
     const {
-      duureg,
-      kheltes,
-      tasag,
-      albanTushaal,
-      tsol,
+      departmentPath, // Array of department names in hierarchy order: ["1.1", "1.2", "1.3", ...]
       ovog,
       ner,
       register,
@@ -216,12 +411,18 @@ exports.ajiltanNemekh = asyncHandler(async (req, res, next) => {
       throw new Error("Энэ нэвтрэх нэртэй ажилтан бүртгэгдсэн байна!");
     }
 
+    // Get all departments to search through hierarchy
+    const allDepartments = await Buleg.find({});
+    
+    // Find department path in hierarchy
+    const departmentAssignments = await findDepartmentPathInHierarchy(departmentPath, allDepartments);
+    
+    if (departmentAssignments.length === 0) {
+      throw new Error("Хэсэг олдсонгүй! Зөв хэсгийн нэрүүдийг оруулна уу.");
+    }
+
     const newEmployee = new Ajiltan({
-      duureg,
-      kheltes,
-      tasag,
-      albanTushaal,
-      tsol,
+      departmentAssignments,
       ovog,
       ner,
       register,
@@ -234,10 +435,13 @@ exports.ajiltanNemekh = asyncHandler(async (req, res, next) => {
 
     const savedEmployee = await newEmployee.save();
     
+    // Populate department information for response
+    const populatedEmployee = await savedEmployee.populateDepartments();
+    
     res.status(201).json({
       success: true,
       message: "Ажилтан амжилттай бүртгэгдлээ",
-      data: savedEmployee
+      data: populatedEmployee
     });
   } catch (error) {
     next(error);

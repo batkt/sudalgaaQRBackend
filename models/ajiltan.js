@@ -7,11 +7,16 @@ mongoose.pluralize(null);
 const ajiltanSchema = new Schema(
   {
     id: String,
-    duureg: String,
-    kheltes: String,
-    tasag: String,
-    albanTushaal: String,
-    tsol: String,
+    // Dynamic department assignments - stores hierarchy path as array of ObjectIds
+    departmentAssignments: [{
+      level: Number, // 0 = root, 1 = first level, etc.
+      departmentId: {
+        type: Schema.Types.ObjectId,
+        ref: 'buleg'
+      },
+      departmentName: String // Store name for easy reference
+    }],
+    // Employee personal information
     ovog: String,
     ner: String,
     register: String,
@@ -60,6 +65,34 @@ ajiltanSchema.pre("updateOne", async function () {
 
 ajiltanSchema.methods.passwordShalgaya = async function (pass) {
   return await bcrypt.compare(pass, this.nuutsUg);
+};
+
+// Method to populate department hierarchy
+ajiltanSchema.methods.populateDepartments = function() {
+  return this.populate('departmentAssignments.departmentId', 'ner desDugaar');
+};
+
+// Static method to find employees with populated departments
+ajiltanSchema.statics.findWithDepartments = function(query = {}) {
+  return this.find(query).populate('departmentAssignments.departmentId', 'ner desDugaar');
+};
+
+// Method to get department hierarchy as a readable path
+ajiltanSchema.methods.getDepartmentPath = function() {
+  return this.departmentAssignments
+    .sort((a, b) => a.level - b.level)
+    .map(dept => dept.departmentName)
+    .join(' > ');
+};
+
+// Method to add department assignment
+ajiltanSchema.methods.addDepartmentAssignment = function(level, departmentId, departmentName) {
+  this.departmentAssignments.push({
+    level,
+    departmentId,
+    departmentName
+  });
+  return this.save();
 };
 
 const AjiltanModel = mongoose.model("ajiltan", ajiltanSchema);

@@ -3,7 +3,10 @@ const router = express.Router();
 const {
   ajiltanTatya,
   ajiltanZagvarAvya,
+  ajiltanExport,
   ajiltanNemekh,
+  getDepartmentHierarchy,
+  getDepartmentsFlat,
 } = require("../controller/asuulgaController");
 const excel = require("exceljs");
 const multer = require("multer");
@@ -40,13 +43,27 @@ crud(router, "ajiltan", Ajiltan, UstsanBarimt);
 
 router.get("/ajiltanIdgaarAvya/:id", async (req, res, next) => {
   try {
-    var asuult = await Ajiltan.findById(req.params.id);
+    var asuult = await Ajiltan.findById(req.params.id).populate('departmentAssignments.departmentId', 'ner desDugaar');
     res.send(asuult);
   } catch (error) {
     next(error);
   }
 });
 router.get("/ajiltanZagvarAvya", ajiltanZagvarAvya);
+router.get("/ajiltanExport", ajiltanExport);
+router.get("/ajiltanBuhAvya", async (req, res, next) => {
+  try {
+    const ajiltanuud = await Ajiltan.findWithDepartments();
+    res.send(ajiltanuud);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Department hierarchy routes
+router.get("/departmentHierarchy", getDepartmentHierarchy);
+router.get("/departmentsFlat", getDepartmentsFlat);
+
 router.post("/ajiltanTatya", uploadFile.single("file"), ajiltanTatya);
 router.post("/ajiltanNemekh", ajiltanNemekh);
 
