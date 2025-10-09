@@ -166,6 +166,11 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
 // Get flat department list
 async function getFlatDepartments() {
   const allDepartments = await Buleg.find({});
+  return getAllDepartmentsFlat(allDepartments);
+}
+
+// Get flat department list from existing departments array
+function getAllDepartmentsFlat(allDepartments) {
   const flatDepartments = [];
 
   function flatten(dept, level = 0) {
@@ -320,7 +325,7 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
               `Row ${i + 2}: No assignments found, trying fallback...`
             );
             // Try to find at least the first department in the path
-            const flatDepartments = await getFlatDepartments();
+            const flatDepartments = getAllDepartmentsFlat(allDepartments);
             console.log(
               `Row ${i + 2}: Available departments:`,
               flatDepartments.map((d) => d.ner)
