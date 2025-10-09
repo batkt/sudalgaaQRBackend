@@ -1,365 +1,90 @@
 const express = require("express");
 const router = express.Router();
+const {
+  ajiltanTatya,
+  ajiltanZagvarAvya,
+  ajiltanNemekh,
+} = require("../controller/asuulgaController");
+const excel = require("exceljs");
+const multer = require("multer");
+const mimetype = require("mime");
+const storage = multer.memoryStorage();
 const Ajiltan = require("../models/ajiltan");
-const Baiguullaga = require("../models/baiguullaga");
-const request = require("request");
-//const UstsanBarimt = require("../models/ustsanBarimt");
 const {
   tokenShalgakh,
-  crudWithFile,
+  khuudaslalt,
   crud,
   UstsanBarimt,
-  db,
-} = require("zevbackv2");
-const {
-  ajiltanNevtrey,
-  backAvya,
-  tokenoorAjiltanAvya,
-  nuutsUgShalgakhAjiltan,
-  zochiniiTokenAvya,
-  erkhiinMedeelelAvya,
-  khugatsaaguiTokenAvya,
-  baiguullagaIdgaarAvya,
-} = require("../controller/ajiltan");
-const aldaa = require("../components/aldaa");
-const session = require("../models/session");
+  Segment,
+  // tsagdaaDuusakhOgnooAvya,
+} = require("zevback");
 
-crudWithFile(
-  router,
-  "ajiltan",
-  Ajiltan,
-  {
-    fileZam: "./zurag/ajiltan",
-    fileName: "zurag",
-  },
-  UstsanBarimt,
-  async (req, res, next) => {
-    try {
-      const { db } = require("zevbackv2");
-      var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
-      console.log("ajiltan model" + JSON.stringify(req.params.id));
-      if (req.params.id) {
-        var ObjectId = require("mongodb").ObjectId;
-        var ajiltan = await ajiltanModel.findOne({
-          nevtrekhNer: req.body.nevtrekhNer,
-          _id: { $ne: ObjectId(req.params.id) },
-        });
-        if (ajiltan) throw new Error("Нэвтрэх нэр давхардаж байна!");
-      } else {
-        console.log(
-          "req.body.nevtrekhNer ----" + JSON.stringify(req.body.nevtrekhNer)
-        );
-        if (req.body.nevtrekhNer) {
-          var ajiltan = await ajiltanModel.findOne({
-            nevtrekhNer: req.body.nevtrekhNer,
-          });
-          if (ajiltan) throw new Error("Нэвтрэх нэр давхардаж байна!");
-          console.log("ajiltan ----" + JSON.stringify(ajiltan));
-        }
-      }
-      next();
-    } catch (error) {
-      console.log("error") + error;
-      next(error);
-    }
-  }
-);
-// crud(router, "ajiltan", Ajiltan, UstsanBarimt);
+const fs = require("fs");
+const filter = (req, file, cb) => {
+  if (
+    file.mimetype === "image/jpeg" ||
+    file.mimetype === "image/jpg" ||
+    file.mimetype === "image/png"
+  )
+    cb(null, true);
+  else cb(null, false);
+};
+const upload = multer({
+  storage: storage,
+  fileFilter: filter,
+});
+const uploadFile = multer({
+  storage: storage,
+});
+crud(router, "ajiltan", Ajiltan, UstsanBarimt);
 
-router.get("/sessionAvya/:sessionId", async (req, res, next) => {
+router.get("/ajiltanIdgaarAvya/:id", async (req, res, next) => {
   try {
-    const sessionId = req.params.sessionId;
-    const { db } = require("zevbackv2");
-    const sessionData = await session(db.erunkhiiKholbolt).findById(sessionId);
+    var asuult = await Ajiltan.findById(req.params.id);
+    res.send(asuult);
+  } catch (error) {
+    next(error);
+  }
+});
+router.get("/ajiltanZagvarAvya", ajiltanZagvarAvya);
+router.post("/ajiltanTatya", uploadFile.single("file"), ajiltanTatya);
+router.post("/ajiltanNemekh", ajiltanNemekh);
 
-    if (!sessionData) {
-      throw new aldaa("Session олдсонгүй");
-    }
-    res.send(sessionData);
+router.post("/ajiltanNevtrey", async (req, res, next) => {
+  try {
+    const ajiltan = await Ajiltan.findOne()
+      .where("nevtrekhNer")
+      .equals(req.body.nevtrekhNer)
+      .select("+nuutsUg")
+      .catch((err) => {
+        next(err);
+      });
+    console.log(ajiltan);
+    if (!ajiltan)
+      throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
+    if (!ok) throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    const jwt = await ajiltan.tokenUusgeye();
+    var butsaakhObject = {
+      token: jwt,
+      result: ajiltan,
+      success: true,
+    };
+    res.send(butsaakhObject);
   } catch (err) {
     next(err);
   }
 });
 
-router.route("/ajiltanNevtrey").post(ajiltanNevtrey);
-router.route("/tokenoorAjiltanAvya").post(tokenoorAjiltanAvya);
-router.route("/nuutsUgShalgakhAjiltan").post(nuutsUgShalgakhAjiltan);
-router.route("/zochiniiTokenAvya/:baiguullagiinId").get(zochiniiTokenAvya);
-router.route("/khugatsaaguiTokenAvya").post(khugatsaaguiTokenAvya);
-router.route("/erkhiinMedeelelAvya").post(tokenShalgakh, erkhiinMedeelelAvya);
-router
-  .route("/baiguullagaIdgaarAvya")
-  .post(tokenShalgakh, baiguullagaIdgaarAvya);
-router.get("/ajiltniiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
-  const fileName = req.params.ner;
-  const directoryPath = "zurag/ajiltan/" + req.params.baiguullaga + "/";
-  res.download(directoryPath + fileName, fileName, (err) => {
-    if (err) {
-      next(err);
-    }
-  });
-});
-
-router.get("/ustsanBarimt", tokenShalgakh, async (req, res, next) => {
+router.post("/nuutsUgSoliyo/:id", tokenShalgakh, async (req, res, next) => {
   try {
-    const body = req.query;
-    const {
-      query = {},
-      order,
-      khuudasniiDugaar = 1,
-      khuudasniiKhemjee = 10,
-      search,
-      collation = {},
-      select = {},
-    } = body;
-    if (!!body?.query) body.query = JSON.parse(body.query);
-    if (req.body.baiguullagiinId) {
-      if (!body.query) body.query = {};
-      body.query["baiguullagiinId"] = req.body.baiguullagiinId;
-    }
-    if (!!body?.order) body.order = JSON.parse(body.order);
-    if (!!body?.select) body.select = JSON.parse(body.select);
-    if (!!body?.collation) body.collation = JSON.parse(body.collation);
-    if (!!body?.khuudasniiDugaar)
-      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-    if (!!body?.khuudasniiKhemjee)
-      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-    let jagsaalt = await UstsanBarimt(req.body.tukhainBaaziinKholbolt)
-      .find(body.query)
-      .sort(body.order)
-      .collation(body.collation ? body.collation : {})
-      .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
-      .limit(body.khuudasniiKhemjee);
-    let niitMur = await UstsanBarimt(
-      req.body.tukhainBaaziinKholbolt
-    ).countDocuments(body.query);
-    let niitKhuudas =
-      niitMur % khuudasniiKhemjee == 0
-        ? Math.floor(niitMur / khuudasniiKhemjee)
-        : Math.floor(niitMur / khuudasniiKhemjee) + 1;
-    if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
-    res.send({
-      khuudasniiDugaar,
-      khuudasniiKhemjee,
-      jagsaalt,
-      niitMur,
-      niitKhuudas,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post("/tsonkhniiErkhiinTooAvya", async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    if (req.body.erkhuud && req.body.erkhuud.length > 0)
-      var moduluud = req.body.erkhuud;
-    console.log(
-      "-----erun---->" + JSON.stringify(db.erunkhiiKholbolt.kholbolt)
-    );
-
-    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-      register: req.body.register,
-    });
-    console.log("--------->" + baiguullaga);
-    for await (const element of moduluud) {
-      var queryAjiltan = {
-        tsonkhniiErkhuud: element.zam,
-        baiguullagiinId: baiguullaga._id,
-      };
-      console.log("b.ID" + queryAjiltan);
-      var ajiltanErkhiinToo = await Ajiltan(db.erunkhiiKholbolt).countDocuments(
-        queryAjiltan
-      );
-      element.odoogiin = ajiltanErkhiinToo;
-    }
-    res.send(moduluud);
-  } catch (error) {
-    console.log("aldaaa" + error);
-    next(error);
-  }
-});
-
-router.post("/ajiltandTokenOnooyo", tokenShalgakh, (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    let filter = {
-      _id: req.body.id,
-    };
-    let update = {
-      firebaseToken: req.body.token,
-    };
-    Ajiltan(db.erunkhiiKholbolt)
-      .updateOne(filter, update)
-      .then((result) => {
-        res.send("Amjilttai");
-      })
-      .catch((err) => {
-        next(err);
-      });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post(
-  "/ajiltniiTokhirgooZasya",
-  tokenShalgakh,
-  async (req, res, next) => {
-    try {
-      const { db } = require("zevbackv2");
-      if (!!req.body) {
-        const { turul, ajiltnuud } = req.body;
-        for await (const ajiltan of ajiltnuud) {
-          await Ajiltan(db.erunkhiiKholbolt)
-            .updateOne(
-              { _id: ajiltan._id },
-              { $set: { [turul]: ajiltan.utga } }
-            )
-            .catch((err) => {
-              next(err);
-            });
-        }
-        res.send("Amjilttai");
-      } else next(new aldaa("Засах боломжгүй байна"));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    if (!!req.body) {
-      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-        req.body.baiguullagiinId
-      );
-      var ajiltan = new Ajiltan(db.erunkhiiKholbolt)({
-        _id: req.params.id,
-        ...req.body,
-      });
-      await Ajiltan(db.erunkhiiKholbolt).updateOne(
-        { _id: req.params.id },
-        ajiltan
-      );
-      if (req.body.erkhuud && req.body.erkhuud.length > 0) {
-        for await (const element of req.body.erkhuud) {
-          var queryAjiltan = {
-            tsonkhniiErkhuud: element.zam,
-            baiguullagiinId: req.body.baiguullagiinId,
-          };
-          var ajiltanErkhiinToo = await Ajiltan(
-            db.erunkhiiKholbolt
-          ).countDocuments(queryAjiltan);
-          element.too = ajiltanErkhiinToo;
-        }
-        var ilgeekhBody = {
-          register: baiguullaga.register,
-          erkhuud: req.body.erkhuud,
-        };
-        await request.post(
-          "http://103.143.40.123:8282/erkhOruulya",
-          { json: true, body: ilgeekhBody },
-          (err, res1, body) => {
-            if (err) next(err);
-          }
-        );
-      }
-      res.send("Amjilttai");
-    } else next(new aldaa("Засах боломжгүй байна"));
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post("/erkhteiEsekh", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    if (!!req.body.zam) {
-      const khariu = await Ajiltan(db.erunkhiiKholbolt)
-        .countDocuments({
-          _id: req.body.nevtersenAjiltniiToken?.id,
-          $or: [{ tsonkhniiErkhuud: req.body.zam }, { erkh: "Admin" }],
-        })
-        .catch((err) => {
-          next(err);
-        });
-      res.send(!!khariu);
-    } else next(new aldaa("Засах боломжгүй байна"));
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post("/backAvya", tokenShalgakh, backAvya);
-
-router.get("/ustsanBarimtTurees", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    const body = req.query;
-    const {
-      query = {},
-      order,
-      khuudasniiDugaar = 1,
-      khuudasniiKhemjee = 10,
-      search,
-      collation = {},
-      select = {},
-    } = body;
-    if (!!body?.query) body.query = JSON.parse(body.query);
-    if (req.body.baiguullagiinId) {
-      if (!body.query) body.query = {};
-      body.query["baiguullagiinId"] = req.body.baiguullagiinId;
-    }
-    if (!!body?.order) body.order = JSON.parse(body.order);
-    if (!!body?.select) body.select = JSON.parse(body.select);
-    if (!!body?.collation) body.collation = JSON.parse(body.collation);
-    if (!!body?.khuudasniiDugaar)
-      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-    if (!!body?.khuudasniiKhemjee)
-      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-    let jagsaalt = await UstsanBarimt(db.erunkhiiKholbolt)
-      .find(body.query)
-      .sort(body.order)
-      .collation(body.collation ? body.collation : {})
-      .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
-      .limit(body.khuudasniiKhemjee);
-    let niitMur = await UstsanBarimt(db.erunkhiiKholbolt).countDocuments(
-      body.query
-    );
-    let niitKhuudas =
-      niitMur % khuudasniiKhemjee == 0
-        ? Math.floor(niitMur / khuudasniiKhemjee)
-        : Math.floor(niitMur / khuudasniiKhemjee) + 1;
-    if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
-    res.send({
-      khuudasniiDugaar,
-      khuudasniiKhemjee,
-      jagsaalt,
-      niitMur,
-      niitKhuudas,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.get("/licenseOgnooAvya", tokenShalgakh, async (req, res, next) => {
-  try {
-    request.get(
-      "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
-      { json: true, body: { register: req.body.register, system: "Turees" } },
-      (err, res1, body) => {
-        if (err) next(err);
-        else {
-          res.send(body);
-        }
-      }
-    );
-  } catch (error) {
-    next(error);
+    const ajiltan = await Ajiltan.findById(req.params.id);
+    ajiltan.isNew = false;
+    ajiltan.nuutsUg = req.body.nuutsUg;
+    await ajiltan.save();
+    res.send("Amjilttai");
+  } catch (err) {
+    next(err);
   }
 });
 module.exports = router;

@@ -14,19 +14,20 @@ const ajiltanRoute = require("./routes/ajiltanRoute");
 const tailanRoute = require("./routes/tailanRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
-const { db } = require("zevbackv2");
-
-db.kholboltUusgey(
-  null,
-  "mongodb://admin:Br1stelback1@localhost:27017/qrSudalgaa?authSource=admin"
-);
+const dbUrl =
+  "mongodb://admin:Br1stelback1@localhost:27017/qrSudalgaa?authSource=admin";
+mongoose
+  .connect(dbUrl, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then((result) => {
+    console.log("xolbogdson");
+    server.listen(8085);
+  })
+  .catch((err) => console.log(err));
 
 process.env.TZ = "Asia/Ulaanbaatar";
-
-// Start server
-server.listen(8085, () => {
-  console.log("🚀 Server is running on http://localhost:8085");
-});
 
 app.set("socketio", io);
 app.use(cors());
