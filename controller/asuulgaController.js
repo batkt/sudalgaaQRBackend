@@ -43,6 +43,7 @@ function checkIfDepartmentColumn(worksheet, column, data) {
   const departmentPatterns = [
     /^\d+\.\d+/, // Pattern like "1.1", "2.3", etc.
     /^\d+\.\d+\.\d+/, // Pattern like "1.1.1", "2.3.4", etc.
+    /^\d+-р түвшин/, // Pattern like "1-р түвшин", "2-р түвшин", etc.
     /^[A-Z]\d+/, // Pattern like "A1", "B2", etc.
     /^\d+[A-Z]/, // Pattern like "1A", "2B", etc.
     /^[А-Я]/, // Mongolian Cyrillic characters
