@@ -536,7 +536,7 @@ exports.ajiltanZagvarAvya = asyncHandler(async (req, res, next) => {
     );
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=ajiltan_template.xlsx"
+      "attachment; filename*=UTF-8''ajiltan_template.xlsx"
     );
 
     return workbook.xlsx.write(res).then(() => res.status(200).end());
@@ -678,7 +678,9 @@ exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=${department.ner}_template.xlsx`
+      `attachment; filename*=UTF-8''${encodeURIComponent(
+        department.ner
+      )}_template.xlsx`
     );
 
     return workbook.xlsx.write(res).then(() => res.status(200).end());
@@ -732,7 +734,7 @@ exports.ajiltanExport = asyncHandler(async (req, res, next) => {
     );
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=ajiltanuud.xlsx"
+      "attachment; filename*=UTF-8''ajiltanuud.xlsx"
     );
 
     return workbook.xlsx.write(res).then(() => res.status(200).end());
