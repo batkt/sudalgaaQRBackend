@@ -31,11 +31,19 @@ function isNumeric(n) {
 async function findDepartmentPathInHierarchy(departmentPath, hierarchy, currentLevel = 0) {
   if (!departmentPath || !hierarchy || departmentPath.length === 0) return [];
   
-  const currentDeptName = departmentPath[0].trim();
-  const remainingPath = departmentPath.slice(1);
+  let currentDeptName, remainingPath;
   
-  console.log(`Searching for: "${currentDeptName}" at level ${currentLevel}`);
-  console.log(`Available departments at this level:`, hierarchy.map(d => d.ner));
+  try {
+    currentDeptName = (departmentPath[0] && typeof departmentPath[0] === 'string') ? departmentPath[0].trim() : String(departmentPath[0] || '').trim();
+    remainingPath = departmentPath.slice(1);
+    
+    console.log(`Searching for: "${currentDeptName}" at level ${currentLevel}`);
+    console.log(`Available departments at this level:`, hierarchy.map(d => d.ner));
+  } catch (error) {
+    console.error('Error in findDepartmentPathInHierarchy:', error);
+    console.error('departmentPath[0]:', departmentPath[0], 'type:', typeof departmentPath[0]);
+    return [];
+  }
   
   // Search in current level with fuzzy matching
   for (const dept of hierarchy) {
@@ -203,8 +211,14 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
       if (tolgoinObject.departments) {
         for (const dept of tolgoinObject.departments) {
           const deptName = mur[usegTooruuKhurvuulekh(dept.column)];
-          if (deptName && deptName.trim() !== "") {
+          if (deptName && typeof deptName === 'string' && deptName.trim() !== "") {
             departmentPath.push(deptName.trim());
+          } else if (deptName && typeof deptName !== 'string') {
+            // Convert non-string to string and trim
+            const stringDeptName = String(deptName).trim();
+            if (stringDeptName !== "") {
+              departmentPath.push(stringDeptName);
+            }
           }
         }
       }
