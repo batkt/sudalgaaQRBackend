@@ -368,6 +368,168 @@ exports.getDepartmentsFlat = asyncHandler(async (req, res, next) => {
   }
 });
 
+// Get available department templates for Excel download
+exports.getDepartmentTemplates = asyncHandler(async (req, res, next) => {
+  try {
+    const allDepartments = await Buleg.find({});
+    const flatDepartments = await getAllDepartmentsFlat();
+    
+    // Group departments by their root level to create templates
+    const templates = [];
+    
+    for (const rootDept of allDepartments) {
+      const template = {
+        id: rootDept._id,
+        name: rootDept.ner,
+        description: `Template for ${rootDept.ner} department structure`,
+        maxLevel: 0,
+        departmentCount: 0
+      };
+      
+      // Calculate max level and department count for this template
+      function calculateTemplateInfo(departments, level = 0) {
+        template.maxLevel = Math.max(template.maxLevel, level);
+        template.departmentCount++;
+        
+        if (departments.dedKhesguud && departments.dedKhesguud.length > 0) {
+          for (const subDept of departments.dedKhesguud) {
+            calculateTemplateInfo(subDept, level + 1);
+          }
+        }
+      }
+      
+      calculateTemplateInfo(rootDept);
+      templates.push(template);
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: templates
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Download Excel template for specific department structure
+exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
+  try {
+    const { departmentId } = req.params;
+    
+    if (!departmentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Department ID is required"
+      });
+    }
+    
+    // Find the specific department and its hierarchy
+    const department = await Buleg.findById(departmentId);
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: "Department not found"
+      });
+    }
+    
+    // Get flat structure for this department
+    const flatDepartments = [];
+    function flattenDepartment(dept, level = 0) {
+      flatDepartments.push({
+        _id: dept._id,
+        ner: (dept.ner && typeof dept.ner === 'string') ? dept.ner : String(dept.ner || ''),
+        level: level
+      });
+      
+      if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+        for (const subDept of dept.dedKhesguud) {
+          flattenDepartment(subDept, level + 1);
+        }
+      }
+    }
+    
+    flattenDepartment(department);
+    const maxLevel = Math.max(...flatDepartments.map(d => d.level));
+    
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Ажилтан");
+    
+    // Create basic employee columns
+    var baganuud = [
+      {
+        header: "Овог",
+        key: "Овог",
+        width: 20,
+      },
+      {
+        header: "Нэр",
+        key: "Нэр",
+        width: 20,
+      },
+      {
+        header: "Регистр",
+        key: "Регистр",
+        width: 20,
+      },
+      {
+        header: "Хувийн дугаар",
+        key: "Хувийн дугаар",
+        width: 20,
+      },
+      {
+        header: "Утас",
+        key: "Утас",
+        width: 20,
+      },
+      {
+        header: "Нэр дуудлага",
+        key: "Нэр дуудлага",
+        width: 20,
+      },
+      {
+        header: "Зургийн ID",
+        key: "Зургийн ID",
+        width: 20,
+      }
+    ];
+
+    // Add dynamic department columns based on this department's hierarchy
+    for (let level = 0; level <= maxLevel; level++) {
+      baganuud.push({
+        header: `Хэсэг ${level + 1}`,
+        key: `Хэсэг ${level + 1}`,
+        width: 25,
+      });
+    }
+
+    worksheet.columns = baganuud;
+    
+    // Add instruction row with department-specific info
+    worksheet.addRow([
+      "Зааварчилгаа:",
+      `1. Энэ загвар нь "${department.ner}" хэсгийн бүтцийн дагуу бэлтгэгдсэн`,
+      `2. Хэсгийн багана нь иерархийн дарааллаар бөглөнө үү`,
+      `3. Хэрэв ажилтан цөөн түвшинд байвал үлдсэн баганыг хоосон үлдээнэ үү`,
+      `4. Бүх заавал бөглөх талбарыг бөглөнө үү`
+    ]);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=${department.ner}_template.xlsx`
+    );
+
+    return workbook.xlsx.write(res).then(function () {
+      res.status(200).end();
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Debug endpoint to test department matching
 exports.debugDepartmentMatching = asyncHandler(async (req, res, next) => {
   try {

@@ -7,6 +7,8 @@ const {
   ajiltanNemekh,
   getDepartmentHierarchy,
   getDepartmentsFlat,
+  getDepartmentTemplates,
+  downloadDepartmentTemplate,
   debugDepartmentMatching,
 } = require("../controller/asuulgaController");
 const excel = require("exceljs");
@@ -64,6 +66,8 @@ router.get("/ajiltanBuhAvya", async (req, res, next) => {
 // Department hierarchy routes
 router.get("/departmentHierarchy", getDepartmentHierarchy);
 router.get("/departmentsFlat", getDepartmentsFlat);
+router.get("/departmentTemplates", getDepartmentTemplates);
+router.get("/downloadTemplate/:departmentId", downloadDepartmentTemplate);
 router.post("/debugDepartmentMatching", debugDepartmentMatching);
 
 router.post("/ajiltanTatya", uploadFile.single("file"), ajiltanTatya);
