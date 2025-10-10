@@ -39,28 +39,10 @@ function checkIfDepartmentColumn(worksheet, column, data) {
     return false;
   }
 
-  // Check if values look like department names or hierarchical identifiers
-  const departmentPatterns = [
-    /^\d+\.\d+/, // Pattern like "1.1", "2.3", etc.
-    /^\d+\.\d+\.\d+/, // Pattern like "1.1.1", "2.3.4", etc.
-    /^\d+-р түвшин/, // Pattern like "1-р түвшин", "2-р түвшин", etc.
-    /^[A-Z]\d+/, // Pattern like "A1", "B2", etc.
-    /^\d+[A-Z]/, // Pattern like "1A", "2B", etc.
-    /^[А-Я]/, // Mongolian Cyrillic characters
-    /^[A-Za-z]/, // English letters
-    /^\d+$/, // Simple numbers like "1", "2", "3"
-    /^[A-Za-z0-9]+$/, // Alphanumeric strings
-  ];
-
-  // Check if at least 60% of sample values match department patterns
-  const matchingValues = sampleValues.filter((value) =>
-    departmentPatterns.some((pattern) => pattern.test(value))
-  );
-
-  const isDepartment =
-    matchingValues.length >= Math.ceil(sampleValues.length * 0.6);
-  console.log(
-    `Column ${column}: ${matchingValues.length}/${sampleValues.length} match, isDepartment: ${isDepartment}`
+  // If column has any data and it's not a basic employee field, treat it as department
+  const isDepartment = sampleValues.length > 0;
+    console.log(
+    `Column ${column}: Has ${sampleValues.length} values, isDepartment: ${isDepartment}`
   );
 
   return isDepartment;
@@ -97,7 +79,7 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
           currentLevel + 1
         );
         if (nestedResult.length > 0) {
-          return result.concat(nestedResult);
+        return result.concat(nestedResult);
         }
       }
 
@@ -105,10 +87,10 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
     }
 
     // Fuzzy match - check if department name contains the search term or vice versa
-    if (
-      deptName.toLowerCase().includes(currentDeptName.toLowerCase()) ||
-      currentDeptName.toLowerCase().includes(deptName.toLowerCase())
-    ) {
+      if (
+        deptName.toLowerCase().includes(currentDeptName.toLowerCase()) ||
+        currentDeptName.toLowerCase().includes(deptName.toLowerCase())
+      ) {
       const result = [
         {
           level: currentLevel,
@@ -135,35 +117,36 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
       return result;
     }
 
-    // Special case: if searching for simple numbers, try to match with department names that contain those numbers
-    if (/^\d+$/.test(currentDeptName)) {
-      const deptNameNumbers = deptName.match(/\d+/g);
-      if (deptNameNumbers && deptNameNumbers.includes(currentDeptName)) {
-        const result = [
-          {
-            level: currentLevel,
-            departmentId: dept._id,
-            departmentName: dept.ner,
-          },
-        ];
+    // Try any character-based matching for any type of data
+    const deptChars = deptName.toLowerCase().split('');
+    const searchChars = currentDeptName.toLowerCase().split('');
+    const commonChars = deptChars.filter(char => searchChars.includes(char));
+    
+    if (commonChars.length >= Math.min(2, searchChars.length)) {
+      const result = [
+        {
+          level: currentLevel,
+          departmentId: dept._id,
+          departmentName: dept.ner,
+        },
+      ];
 
-        if (
-          remainingPath.length > 0 &&
-          dept.dedKhesguud &&
-          dept.dedKhesguud.length > 0
-        ) {
-          const nestedResult = await findDepartmentPath(
-            remainingPath,
-            dept.dedKhesguud,
-            currentLevel + 1
-          );
-          if (nestedResult.length > 0) {
-            return result.concat(nestedResult);
-          }
+      if (
+        remainingPath.length > 0 &&
+        dept.dedKhesguud &&
+        dept.dedKhesguud.length > 0
+      ) {
+        const nestedResult = await findDepartmentPath(
+          remainingPath,
+          dept.dedKhesguud,
+          currentLevel + 1
+        );
+        if (nestedResult.length > 0) {
+          return result.concat(nestedResult);
         }
-
-        return result;
       }
+
+      return result;
     }
 
     // If no match found at current level, search in sub-departments
@@ -193,13 +176,13 @@ function getAllDepartmentsFlat(allDepartments) {
   const flatDepartments = [];
 
   function flatten(dept, level = 0) {
-    flatDepartments.push({
-      _id: dept._id,
+      flatDepartments.push({
+        _id: dept._id,
       ner: safeTrim(dept.ner),
-      level: level,
-    });
+        level: level,
+      });
 
-    if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+      if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
       for (const subDept of dept.dedKhesguud) {
         flatten(subDept, level + 1);
       }
@@ -303,10 +286,10 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
               columnMap.departments.push({
                 column,
                 name: header,
-              });
-            }
-          }
+          });
         }
+      }
+    }
       }
     }
 
@@ -323,49 +306,49 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
     }
     console.log("Sample data rows:", data.slice(1, 4)); // First 3 data rows
 
-    // Force detect all columns that look like departments
-    if (!columnMap.departments) {
-      columnMap.departments = [];
-    }
+     // Force detect all columns that look like departments
+     if (!columnMap.departments) {
+       columnMap.departments = [];
+     }
 
-    // Check all columns for department-like headers
-    for (let cell in worksheet) {
-      const cellStr = cell.toString();
-      if (cellStr[1] === "1" && cellStr.length === 2 && worksheet[cellStr].v) {
-        const header = worksheet[cellStr].v.toString();
-        const column = cellStr[0];
+     // Dynamically detect all columns that are not basic employee fields
+     for (let cell in worksheet) {
+       const cellStr = cell.toString();
+       if (cellStr[1] === "1" && cellStr.length === 2 && worksheet[cellStr].v) {
+         const header = worksheet[cellStr].v.toString();
+         const column = cellStr[0];
 
-        // Skip basic employee fields
-        if (
-          header.includes("Овог") ||
-          header.includes("Нэр") ||
-          header.includes("Регистр") ||
-          header.includes("Хувийн дугаар") ||
-          header.includes("Утас")
-        ) {
-          continue;
-        }
-
-        // Check if this looks like a department name
-        const isDepartmentLike =
-          /^\d+\.\d+/.test(header) ||
-          /^\d+-р түвшин/.test(header) ||
-          /^[А-Я]/.test(header);
-
-        if (isDepartmentLike) {
-          const existingDept = columnMap.departments.find(
-            (d) => d.column === column
-          );
-          if (!existingDept) {
-            columnMap.departments.push({
-              column: column,
-              name: header,
-            });
-            console.log(`Added department column: ${column} -> ${header}`);
-          }
-        }
+         // Skip only the basic employee fields we know about
+         if (
+           header.includes("Овог") ||
+           header.includes("Нэр") ||
+           header.includes("Регистр") ||
+           header.includes("Хувийн дугаар") ||
+           header.includes("Утас")
+      ) {
+        continue;
       }
-    }
+
+         // Check if this column has any data at all
+         const hasData = data.slice(1, 4).some(row => {
+           const value = row[usegTooruuKhurvuulekh(column)];
+           return value && String(value).trim() !== "";
+         });
+
+         if (hasData) {
+           const existingDept = columnMap.departments.find(
+             (d) => d.column === column
+           );
+           if (!existingDept) {
+             columnMap.departments.push({
+               column: column,
+               name: header,
+             });
+             console.log(`Added department column: ${column} -> ${header}`);
+           }
+         }
+       }
+     }
 
     console.log("Final department columns:", columnMap.departments);
 
@@ -404,55 +387,80 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         );
         console.log(`Department columns to check:`, columnMap.departments);
 
-        for (const dept of columnMap.departments) {
-          const cellValue = row[usegTooruuKhurvuulekh(dept.column)];
-          console.log(`Column ${dept.column} (${dept.name}): "${cellValue}"`);
+         for (const dept of columnMap.departments) {
+           const cellValue = row[usegTooruuKhurvuulekh(dept.column)];
+           console.log(`Column ${dept.column} (${dept.name}): "${cellValue}"`);
 
-          // If cell has value, find matching department and its parents
-          if (cellValue && safeTrim(cellValue) !== "") {
-            console.log(`Looking for department: ${dept.name}`);
-            const foundDept = flatDepartments.find((d) => d.ner === dept.name);
-            console.log(`Found department:`, foundDept);
+           // If cell has value, find matching department by the CELL VALUE, not the header name
+           if (cellValue && safeTrim(cellValue) !== "") {
+             const searchValue = safeTrim(cellValue);
+             console.log(`Looking for department with value: "${searchValue}"`);
+             
+             // Try to find department by exact match first
+             let foundDept = flatDepartments.find((d) => d.ner === searchValue);
+             
+             // If not found, try fuzzy matching - any kind of partial match
+             if (!foundDept) {
+               foundDept = flatDepartments.find((d) => 
+                 d.ner.toLowerCase().includes(searchValue.toLowerCase()) ||
+                 searchValue.toLowerCase().includes(d.ner.toLowerCase()) ||
+                 d.ner.toLowerCase().startsWith(searchValue.toLowerCase()) ||
+                 searchValue.toLowerCase().startsWith(d.ner.toLowerCase())
+               );
+             }
+             
+             // If still not found, try any character-based matching
+             if (!foundDept) {
+               foundDept = flatDepartments.find((d) => {
+                 const deptChars = d.ner.toLowerCase().split('');
+                 const searchChars = searchValue.toLowerCase().split('');
+                 // Check if any significant portion of characters match
+                 const commonChars = deptChars.filter(char => searchChars.includes(char));
+                 return commonChars.length >= Math.min(3, searchChars.length);
+               });
+             }
+             
+             console.log(`Found department:`, foundDept);
 
-            if (foundDept) {
-              // Add the department itself
-              if (!assignedDeptIds.has(foundDept._id.toString())) {
-                employee.departmentAssignments.push({
-                  level: foundDept.level,
-                  departmentId: foundDept._id,
-                  departmentName: foundDept.ner,
-                });
-                assignedDeptIds.add(foundDept._id.toString());
-                console.log(
-                  `Added department: ${foundDept.ner} (level ${foundDept.level})`
-                );
-              }
+             if (foundDept) {
+               // Add the department itself
+               if (!assignedDeptIds.has(foundDept._id.toString())) {
+                 employee.departmentAssignments.push({
+                   level: foundDept.level,
+                   departmentId: foundDept._id,
+                   departmentName: foundDept.ner,
+                 });
+                 assignedDeptIds.add(foundDept._id.toString());
+                 console.log(
+                   `Added department: ${foundDept.ner} (level ${foundDept.level})`
+                 );
+               }
 
-              // Add all parent departments
-              const parentPath = findParentDepartments(
-                foundDept,
-                allDepartments
-              );
-              console.log(`Parent path for ${foundDept.ner}:`, parentPath);
+               // Add all parent departments
+               const parentPath = findParentDepartments(
+                 foundDept,
+                 allDepartments
+               );
+               console.log(`Parent path for ${foundDept.ner}:`, parentPath);
 
-              for (const parent of parentPath) {
-                if (!assignedDeptIds.has(parent._id.toString())) {
-                  employee.departmentAssignments.push({
-                    level: parent.level,
-                    departmentId: parent._id,
-                    departmentName: parent.ner,
-                  });
-                  assignedDeptIds.add(parent._id.toString());
-                  console.log(
-                    `Added parent: ${parent.ner} (level ${parent.level})`
-                  );
-                }
-              }
-            } else {
-              console.log(`Department not found: ${dept.name}`);
-            }
-          }
-        }
+               for (const parent of parentPath) {
+                 if (!assignedDeptIds.has(parent._id.toString())) {
+                   employee.departmentAssignments.push({
+                     level: parent.level,
+                     departmentId: parent._id,
+                     departmentName: parent.ner,
+                   });
+                   assignedDeptIds.add(parent._id.toString());
+                   console.log(
+                     `Added parent: ${parent.ner} (level ${parent.level})`
+                   );
+                 }
+               }
+             } else {
+               console.log(`Department not found for value: "${searchValue}"`);
+             }
+           }
+         }
 
         console.log(
           `Final assignments for ${employee.ner}:`,
@@ -486,10 +494,10 @@ function getDepartmentHierarchyForTemplate(departments, level = 0) {
     hierarchy.push({
       name: dept.ner,
       level: level,
-      _id: dept._id,
-    });
+        _id: dept._id,
+      });
 
-    if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+      if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
       const subHierarchy = getDepartmentHierarchyForTemplate(
         dept.dedKhesguud,
         level + 1
