@@ -14,7 +14,8 @@ const ajiltanSchema = new Schema(
         type: Schema.Types.ObjectId,
         ref: 'buleg'
       },
-      departmentName: String // Store name for easy reference
+      departmentName: String, // Store name for easy reference
+      departmentValue: String // Store the cell value from Excel
     }],
     // Employee personal information
     ovog: String,
@@ -86,11 +87,12 @@ ajiltanSchema.methods.getDepartmentPath = function() {
 };
 
 // Method to add department assignment
-ajiltanSchema.methods.addDepartmentAssignment = function(level, departmentId, departmentName) {
+ajiltanSchema.methods.addDepartmentAssignment = function(level, departmentId, departmentName, departmentValue = null) {
   this.departmentAssignments.push({
     level,
     departmentId,
-    departmentName
+    departmentName,
+    departmentValue
   });
   return this.save();
 };

@@ -67,7 +67,7 @@ function checkIfDepartmentColumn(worksheet, column, data) {
 }
 
 // Find department in hierarchy
-async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
+async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0, departmentValue = null) {
   if (!departmentPath || !hierarchy || departmentPath.length === 0) return [];
 
   const currentDeptName = safeTrim(departmentPath[0]);
@@ -83,6 +83,7 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
           level: currentLevel,
           departmentId: dept._id,
           departmentName: dept.ner,
+          departmentValue: departmentValue || dept.value || null,
         },
       ];
 
@@ -94,7 +95,8 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
         const nestedResult = await findDepartmentPath(
           remainingPath,
           dept.dedKhesguud,
-          currentLevel + 1
+          currentLevel + 1,
+          departmentValue
         );
         if (nestedResult.length > 0) {
           return result.concat(nestedResult);
@@ -114,6 +116,7 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
           level: currentLevel,
           departmentId: dept._id,
           departmentName: dept.ner,
+          departmentValue: departmentValue || dept.value || null,
         },
       ];
 
@@ -125,7 +128,8 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
         const nestedResult = await findDepartmentPath(
           remainingPath,
           dept.dedKhesguud,
-          currentLevel + 1
+          currentLevel + 1,
+          departmentValue
         );
         if (nestedResult.length > 0) {
           return result.concat(nestedResult);
@@ -144,6 +148,7 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
             level: currentLevel,
             departmentId: dept._id,
             departmentName: dept.ner,
+            departmentValue: departmentValue || dept.value || null,
           },
         ];
 
@@ -155,7 +160,8 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
           const nestedResult = await findDepartmentPath(
             remainingPath,
             dept.dedKhesguud,
-            currentLevel + 1
+            currentLevel + 1,
+            departmentValue
           );
           if (nestedResult.length > 0) {
             return result.concat(nestedResult);
@@ -171,7 +177,8 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0) {
       const nestedResult = await findDepartmentPath(
         departmentPath,
         dept.dedKhesguud,
-        currentLevel + 1
+        currentLevel + 1,
+        departmentValue
       );
       if (nestedResult.length > 0) {
         return nestedResult;
@@ -421,10 +428,11 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
                   level: foundDept.level,
                   departmentId: foundDept._id,
                   departmentName: foundDept.ner,
+                  departmentValue: cellValue, // Store the actual cell value
                 });
                 assignedDeptIds.add(foundDept._id.toString());
                 console.log(
-                  `Added department: ${foundDept.ner} (level ${foundDept.level})`
+                  `Added department: ${foundDept.ner} (level ${foundDept.level}) with value: ${cellValue}`
                 );
               }
 
@@ -441,10 +449,11 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
                     level: parent.level,
                     departmentId: parent._id,
                     departmentName: parent.ner,
+                    departmentValue: cellValue, // Store the actual cell value for parents too
                   });
                   assignedDeptIds.add(parent._id.toString());
                   console.log(
-                    `Added parent: ${parent.ner} (level ${parent.level})`
+                    `Added parent: ${parent.ner} (level ${parent.level}) with value: ${cellValue}`
                   );
                 }
               }
@@ -567,7 +576,9 @@ exports.ajiltanNemekh = asyncHandler(async (req, res, next) => {
     const allDepartments = await Buleg.find({});
     const departmentAssignments = await findDepartmentPath(
       departmentPath,
-      allDepartments
+      allDepartments,
+      0,
+      null // No specific departmentValue for manual creation
     );
 
     if (departmentPath.length > 0 && departmentAssignments.length === 0) {
@@ -684,6 +695,38 @@ exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
     );
 
     return workbook.xlsx.write(res).then(() => res.status(200).end());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create Test Employee
+exports.createTestEmployee = asyncHandler(async (req, res, next) => {
+  try {
+    const testEmployee = new Ajiltan({
+      ovog: "Test",
+      ner: "Employee",
+      register: "TEST123456",
+      utas: "12345678",
+      nevtrekhNer: "testuser",
+      departmentAssignments: [
+        {
+          level: 0,
+          departmentId: "68e7bcd411b69701acab5ba2",
+          departmentName: "Шүүхийн шийдвэр гүйцэтгэх ерөнхий газар",
+          departmentValue: "Test Cell Value"
+        }
+      ],
+      nuutsUg: "123",
+    });
+
+    const savedEmployee = await testEmployee.save();
+    
+    res.status(201).json({
+      success: true,
+      message: "Test employee created successfully",
+      data: savedEmployee,
+    });
   } catch (error) {
     next(error);
   }
