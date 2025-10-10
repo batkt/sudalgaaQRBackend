@@ -256,55 +256,103 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
       throw new Error("Буруу файл байна!");
     }
 
-    // Map column headers
+    // Map column headers - improved logic
     const columnMap = {};
     const allDepartments = await Buleg.find({});
     const departmentHierarchy =
       getDepartmentHierarchyForTemplate(allDepartments);
 
+    console.log("=== COLUMN MAPPING DEBUG ===");
+    console.log("Available data rows:", data.length);
+    console.log("First few rows:", data.slice(0, 3));
+
+    // First pass: map basic employee fields
     for (let cell in worksheet) {
       const cellStr = cell.toString();
       if (cellStr[1] === "1" && cellStr.length === 2 && worksheet[cellStr].v) {
-        const header = worksheet[cellStr].v.toString();
+        const header = worksheet[cellStr].v.toString().trim();
+        const column = cellStr[0];
+        const columnIndex = usegTooruuKhurvuulekh(column);
+
+        console.log(`Checking header: "${header}" at column ${column} (index ${columnIndex})`);
+
+        // Map basic employee fields with more flexible matching
+        if (header.includes("Овог") || header === "Овог") {
+          columnMap.ovog = column;
+          console.log(`Mapped Овог to column ${column}`);
+        } else if ((header.includes("Нэр") && !header.includes("дуудлага")) || header === "Нэр") {
+          columnMap.ner = column;
+          console.log(`Mapped Нэр to column ${column}`);
+        } else if (header.includes("Регистр") || header === "Регистр") {
+          columnMap.register = column;
+          console.log(`Mapped Регистр to column ${column}`);
+        } else if (header.includes("Хувийн дугаар") || header === "Хувийн дугаар") {
+          columnMap.nevtrekhNer = column;
+          console.log(`Mapped Хувийн дугаар to column ${column}`);
+        } else if (header.includes("Утас") || header === "Утас") {
+          columnMap.utas = column;
+          console.log(`Mapped Утас to column ${column}`);
+        } else if (header.includes("Эрх") || header === "Эрх") {
+          columnMap.erkh = column;
+          console.log(`Mapped Эрх to column ${column}`);
+        }
+      }
+    }
+
+    // Second pass: map department columns dynamically
+    columnMap.departments = [];
+    const flatDepartments = getAllDepartmentsFlat(allDepartments);
+    
+    for (let cell in worksheet) {
+      const cellStr = cell.toString();
+      if (cellStr[1] === "1" && cellStr.length === 2 && worksheet[cellStr].v) {
+        const header = worksheet[cellStr].v.toString().trim();
         const column = cellStr[0];
 
-        if (header.includes("Овог")) columnMap.ovog = column;
-        else if (header.includes("Нэр") && !header.includes("дуудлага"))
-          columnMap.ner = column;
-        else if (header.includes("Регистр")) columnMap.register = column;
-        else if (header.includes("Хувийн дугаар"))
-          columnMap.nevtrekhNer = column;
-        else if (header.includes("Утас")) columnMap.utas = column;
-        else {
-          // Check if this column contains department-like data by examining sample values
-          const isDepartmentColumn = checkIfDepartmentColumn(
-            worksheet,
-            column,
-            data
-          );
-          if (isDepartmentColumn) {
-            if (!columnMap.departments) columnMap.departments = [];
+        // Skip already mapped basic fields
+        if (
+          header.includes("Овог") ||
+          header.includes("Нэр") ||
+          header.includes("Регистр") ||
+          header.includes("Хувийн дугаар") ||
+          header.includes("Утас") ||
+          header.includes("Эрх") ||
+          header.includes("№") ||
+          header.includes("Зураг")
+        ) {
+          continue;
+        }
+
+        // Check if this header matches any existing department name
+        const matchingDept = flatDepartments.find(dept => dept.ner === header);
+        
+        if (matchingDept) {
+          columnMap.departments.push({
+            column: column,
+            name: header,
+            departmentId: matchingDept._id,
+            level: matchingDept.level
+          });
+          console.log(`Mapped department: ${column} -> ${header} (ID: ${matchingDept._id})`);
+        } else {
+          // Fallback: check if it looks like a department name
+          const isDepartmentLike =
+            /^\d+\.\d+/.test(header) ||
+            /^\d+-р түвшин/.test(header) ||
+            /^[А-Я]/.test(header) ||
+            header.includes("ШШГ") ||
+            header.includes("газар") ||
+            header.includes("алба") ||
+            header.includes("хэлтэс") ||
+            header.includes("тасаг") ||
+            header.includes("бүлэг");
+
+          if (isDepartmentLike) {
             columnMap.departments.push({
-              column,
+              column: column,
               name: header,
             });
-          } else {
-            // Fallback: if it's not a basic employee field and has data, treat it as department
-            const hasData = data.slice(1, 4).some((row) => {
-              const value = row[usegTooruuKhurvuulekh(column)];
-              return value && String(value).trim() !== "";
-            });
-
-            if (hasData) {
-              console.log(
-                `Column ${column} (${header}): Treating as department column (fallback)`
-              );
-              if (!columnMap.departments) columnMap.departments = [];
-              columnMap.departments.push({
-                column,
-                name: header,
-              });
-            }
+            console.log(`Mapped department (fallback): ${column} -> ${header}`);
           }
         }
       }
@@ -313,143 +361,172 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
     const employees = [];
     let errors = "";
 
-    // Debug: Log detected department columns
-    console.log("=== DEBUGGING DEPARTMENT DETECTION ===");
+    // Debug: Log detected columns
+    console.log("=== FINAL COLUMN MAPPING ===");
     console.log("Column map:", columnMap);
-    if (columnMap.departments) {
-      console.log("Detected department columns:", columnMap.departments);
-    } else {
-      console.log("No department columns detected");
-    }
+    console.log("Detected department columns:", columnMap.departments);
     console.log("Sample data rows:", data.slice(1, 4)); // First 3 data rows
 
-    // Force detect all columns that look like departments
-    if (!columnMap.departments) {
-      columnMap.departments = [];
-    }
-
-    // Check all columns for department-like headers
-    for (let cell in worksheet) {
-      const cellStr = cell.toString();
-      if (cellStr[1] === "1" && cellStr.length === 2 && worksheet[cellStr].v) {
-        const header = worksheet[cellStr].v.toString();
-        const column = cellStr[0];
-
-        // Skip basic employee fields
-        if (
-          header.includes("Овог") ||
-          header.includes("Нэр") ||
-          header.includes("Регистр") ||
-          header.includes("Хувийн дугаар") ||
-          header.includes("Утас")
-        ) {
-          continue;
-        }
-
-        // Check if this looks like a department name
-        const isDepartmentLike =
-          /^\d+\.\d+/.test(header) ||
-          /^\d+-р түвшин/.test(header) ||
-          /^[А-Я]/.test(header);
-
-        if (isDepartmentLike) {
-          const existingDept = columnMap.departments.find(
-            (d) => d.column === column
-          );
-          if (!existingDept) {
-            columnMap.departments.push({
-              column: column,
-              name: header,
-            });
-            console.log(`Added department column: ${column} -> ${header}`);
-          }
-        }
-      }
-    }
-
-    console.log("Final department columns:", columnMap.departments);
-
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 1; i < data.length; i++) { // Start from row 1 (skip header)
       const row = data[i];
 
-      if (
-        !row[usegTooruuKhurvuulekh(columnMap.ner)] &&
-        !row[usegTooruuKhurvuulekh(columnMap.register)]
-      ) {
+      // Skip empty rows
+      if (!row || row.length === 0) {
+        continue;
+      }
+
+      // Extract employee data with proper null checking
+      const ovog = columnMap.ovog ? safeTrim(row[usegTooruuKhurvuulekh(columnMap.ovog)]) : "";
+      const ner = columnMap.ner ? safeTrim(row[usegTooruuKhurvuulekh(columnMap.ner)]) : "";
+      const register = columnMap.register ? safeTrim(row[usegTooruuKhurvuulekh(columnMap.register)]) : "";
+      const utas = columnMap.utas ? safeTrim(row[usegTooruuKhurvuulekh(columnMap.utas)]) : "";
+      const nevtrekhNer = columnMap.nevtrekhNer ? safeTrim(row[usegTooruuKhurvuulekh(columnMap.nevtrekhNer)]) : "";
+      const erkh = columnMap.erkh ? safeTrim(row[usegTooruuKhurvuulekh(columnMap.erkh)]) : "";
+
+      console.log(`\n=== Processing Row ${i + 1} ===`);
+      console.log(`Овог: "${ovog}"`);
+      console.log(`Нэр: "${ner}"`);
+      console.log(`Регистр: "${register}"`);
+      console.log(`Утас: "${utas}"`);
+      console.log(`Хувийн дугаар: "${nevtrekhNer}"`);
+      console.log(`Эрх: "${erkh}"`);
+
+      // Skip rows without essential data
+      if (!ner && !register) {
+        console.log(`Skipping row ${i + 1}: No name or register`);
+        continue;
+      }
+
+      // Validate required fields
+      if (!ner) {
+        errors += `Мөр ${i + 1}: Нэр заавал оруулна уу.\n`;
+        continue;
+      }
+
+      if (!register) {
+        errors += `Мөр ${i + 1}: Регистрийн дугаар заавал оруулна уу.\n`;
+        continue;
+      }
+
+      // Check for duplicate register
+      const existingEmployee = await Ajiltan.findOne({ register });
+      if (existingEmployee) {
+        errors += `Мөр ${i + 1}: ${register} регистрийн дугаартай ажилтан бүртгэгдсэн байна.\n`;
         continue;
       }
 
       const employee = new Ajiltan({
-        ovog: row[usegTooruuKhurvuulekh(columnMap.ovog)],
-        ner: row[usegTooruuKhurvuulekh(columnMap.ner)],
-        register: row[usegTooruuKhurvuulekh(columnMap.register)],
-        utas: row[usegTooruuKhurvuulekh(columnMap.utas)],
-        nevtrekhNer: row[usegTooruuKhurvuulekh(columnMap.nevtrekhNer)],
-        porool: row[usegTooruuKhurvuulekh(columnMap.porool)],
-        zurgiinId: row[usegTooruuKhurvuulekh(columnMap.zurgiinId)],
+        ovog: ovog || "",
+        ner: ner,
+        register: register,
+        utas: utas || "",
+        nevtrekhNer: nevtrekhNer || "",
+        erkh: erkh || "",
         nuutsUg: "123",
       });
 
-      // Process department assignments - Include parent departments
+      // Process department assignments
       employee.departmentAssignments = [];
-      console.log(`\n=== Processing Row ${i + 2} (${employee.ner}) ===`);
+      console.log(`\n=== Processing Departments for ${employee.ner} ===`);
 
-      if (columnMap.departments) {
+      if (columnMap.departments && columnMap.departments.length > 0) {
         const flatDepartments = getAllDepartmentsFlat(allDepartments);
         const assignedDeptIds = new Set(); // To avoid duplicates
 
-        console.log(
-          `Available departments:`,
-          flatDepartments.map((d) => d.ner)
-        );
+        console.log(`Available departments:`, flatDepartments.map((d) => d.ner));
         console.log(`Department columns to check:`, columnMap.departments);
 
         for (const dept of columnMap.departments) {
           const cellValue = row[usegTooruuKhurvuulekh(dept.column)];
           console.log(`Column ${dept.column} (${dept.name}): "${cellValue}"`);
 
-          // If cell has value, find matching department and its parents
+          // If cell has value, process department assignment
           if (cellValue && safeTrim(cellValue) !== "") {
-            console.log(`Looking for department: ${dept.name}`);
-            const foundDept = flatDepartments.find((d) => d.ner === dept.name);
-            console.log(`Found department:`, foundDept);
-
-            if (foundDept) {
-              // Add the department itself
-              if (!assignedDeptIds.has(foundDept._id.toString())) {
-                employee.departmentAssignments.push({
-                  level: foundDept.level,
-                  departmentId: foundDept._id,
-                  departmentName: foundDept.ner,
-                });
-                assignedDeptIds.add(foundDept._id.toString());
-                console.log(
-                  `Added department: ${foundDept.ner} (level ${foundDept.level})`
-                );
-              }
-
-              // Add all parent departments
-              const parentPath = findParentDepartments(
-                foundDept,
-                allDepartments
-              );
-              console.log(`Parent path for ${foundDept.ner}:`, parentPath);
-
-              for (const parent of parentPath) {
-                if (!assignedDeptIds.has(parent._id.toString())) {
+            console.log(`Processing department assignment for: ${dept.name}`);
+            
+            // If we have departmentId from mapping, use it directly
+            if (dept.departmentId) {
+              const foundDept = flatDepartments.find((d) => d._id.toString() === dept.departmentId.toString());
+              
+              if (foundDept) {
+                // Add the department itself
+                if (!assignedDeptIds.has(foundDept._id.toString())) {
                   employee.departmentAssignments.push({
-                    level: parent.level,
-                    departmentId: parent._id,
-                    departmentName: parent.ner,
+                    level: foundDept.level,
+                    departmentId: foundDept._id,
+                    departmentName: foundDept.ner,
                   });
-                  assignedDeptIds.add(parent._id.toString());
+                  assignedDeptIds.add(foundDept._id.toString());
                   console.log(
-                    `Added parent: ${parent.ner} (level ${parent.level})`
+                    `Added department: ${foundDept.ner} (level ${foundDept.level})`
                   );
                 }
+
+                // Add all parent departments
+                const parentPath = findParentDepartments(
+                  foundDept,
+                  allDepartments
+                );
+                console.log(`Parent path for ${foundDept.ner}:`, parentPath);
+
+                for (const parent of parentPath) {
+                  if (!assignedDeptIds.has(parent._id.toString())) {
+                    employee.departmentAssignments.push({
+                      level: parent.level,
+                      departmentId: parent._id,
+                      departmentName: parent.ner,
+                    });
+                    assignedDeptIds.add(parent._id.toString());
+                    console.log(
+                      `Added parent: ${parent.ner} (level ${parent.level})`
+                    );
+                  }
+                }
+              } else {
+                console.log(`Department not found in flat list: ${dept.name}`);
               }
             } else {
-              console.log(`Department not found: ${dept.name}`);
+              // Fallback: search by name
+              const foundDept = flatDepartments.find((d) => d.ner === dept.name);
+              console.log(`Found department by name:`, foundDept);
+
+              if (foundDept) {
+                // Add the department itself
+                if (!assignedDeptIds.has(foundDept._id.toString())) {
+                  employee.departmentAssignments.push({
+                    level: foundDept.level,
+                    departmentId: foundDept._id,
+                    departmentName: foundDept.ner,
+                  });
+                  assignedDeptIds.add(foundDept._id.toString());
+                  console.log(
+                    `Added department: ${foundDept.ner} (level ${foundDept.level})`
+                  );
+                }
+
+                // Add all parent departments
+                const parentPath = findParentDepartments(
+                  foundDept,
+                  allDepartments
+                );
+                console.log(`Parent path for ${foundDept.ner}:`, parentPath);
+
+                for (const parent of parentPath) {
+                  if (!assignedDeptIds.has(parent._id.toString())) {
+                    employee.departmentAssignments.push({
+                      level: parent.level,
+                      departmentId: parent._id,
+                      departmentName: parent.ner,
+                    });
+                    assignedDeptIds.add(parent._id.toString());
+                    console.log(
+                      `Added parent: ${parent.ner} (level ${parent.level})`
+                    );
+                  }
+                }
+              } else {
+                console.log(`Department not found: ${dept.name}`);
+              }
             }
           }
         }
@@ -501,33 +578,76 @@ function getDepartmentHierarchyForTemplate(departments, level = 0) {
   return hierarchy;
 }
 
+// Generate dynamic columns based on actual department hierarchy
+function generateDynamicColumns(departments) {
+  const basicColumns = [
+    { header: "№", key: "№", width: 10 },
+    { header: "Зураг", key: "Зураг", width: 15 },
+    { header: "Овог", key: "Овог", width: 20 },
+    { header: "Нэр", key: "Нэр", width: 20 },
+    { header: "Регистр", key: "Регистр", width: 20 },
+    { header: "Хувийн дугаар", key: "Хувийн дугаар", width: 20 },
+    { header: "Утас", key: "Утас", width: 20 },
+    { header: "Эрх", key: "Эрх", width: 20 },
+  ];
+
+  // Get all department paths from the hierarchy
+  const departmentPaths = getAllDepartmentPaths(departments);
+  
+  // Create columns for each department level
+  const departmentColumns = [];
+  const maxLevel = Math.max(...departmentPaths.map(path => path.length - 1));
+  
+  for (let level = 0; level <= maxLevel; level++) {
+    const levelDepartments = departmentPaths
+      .filter(path => path.length > level)
+      .map(path => path[level])
+      .filter((dept, index, arr) => arr.findIndex(d => d._id.toString() === dept._id.toString()) === index); // Remove duplicates
+    
+    levelDepartments.forEach(dept => {
+      departmentColumns.push({
+        header: dept.ner,
+        key: `dept_${dept._id}`,
+        width: 25,
+        level: level,
+        departmentId: dept._id
+      });
+    });
+  }
+
+  return [...basicColumns, ...departmentColumns];
+}
+
+// Get all possible department paths from hierarchy
+function getAllDepartmentPaths(departments, currentPath = []) {
+  const paths = [];
+  
+  for (const dept of departments) {
+    const newPath = [...currentPath, { _id: dept._id, ner: dept.ner, level: currentPath.length }];
+    paths.push(newPath);
+    
+    if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
+      const subPaths = getAllDepartmentPaths(dept.dedKhesguud, newPath);
+      paths.push(...subPaths);
+    }
+  }
+  
+  return paths;
+}
+
 // Excel Template Download
 exports.ajiltanZagvarAvya = asyncHandler(async (req, res, next) => {
   try {
     const allDepartments = await Buleg.find({});
-    const departmentHierarchy =
-      getDepartmentHierarchyForTemplate(allDepartments);
-
+    
     const workbook = new excel.Workbook();
     const worksheet = workbook.addWorksheet("Ажилтан");
 
-    const columns = [
-      { header: "Овог", key: "Овог", width: 20 },
-      { header: "Нэр", key: "Нэр", width: 20 },
-      { header: "Регистр", key: "Регистр", width: 20 },
-      { header: "Хувийн дугаар", key: "Хувийн дугаар", width: 20 },
-      { header: "Утас", key: "Утас", width: 20 },
-    ];
-
-    // Add department columns based on actual hierarchy
-    departmentHierarchy.forEach((dept, index) => {
-      columns.push({
-        header: dept.name,
-        key: `dept_${index}`,
-        width: 25,
-      });
-    });
-
+    // Generate dynamic columns based on actual department hierarchy
+    const columns = generateDynamicColumns(allDepartments);
+    
+    console.log("Generated dynamic columns:", columns.map(c => c.header));
+    
     worksheet.columns = columns;
 
     res.setHeader(
@@ -635,6 +755,49 @@ exports.getDepartmentTemplates = asyncHandler(async (req, res, next) => {
   }
 });
 
+// Get Dynamic Template Structure
+exports.getDynamicTemplateStructure = asyncHandler(async (req, res, next) => {
+  try {
+    const allDepartments = await Buleg.find({});
+    const dynamicColumns = generateDynamicColumns(allDepartments);
+    
+    // Group columns by type
+    const basicColumns = dynamicColumns.filter(col => 
+      ['№', 'Зураг', 'Овог', 'Нэр', 'Регистр', 'Хувийн дугаар', 'Утас', 'Эрх'].includes(col.header)
+    );
+    
+    const departmentColumns = dynamicColumns.filter(col => 
+      !['№', 'Зураг', 'Овог', 'Нэр', 'Регистр', 'Хувийн дугаар', 'Утас', 'Эрх'].includes(col.header)
+    );
+    
+    // Group department columns by level
+    const departmentColumnsByLevel = {};
+    departmentColumns.forEach(col => {
+      if (!departmentColumnsByLevel[col.level]) {
+        departmentColumnsByLevel[col.level] = [];
+      }
+      departmentColumnsByLevel[col.level].push(col);
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        basicColumns,
+        departmentColumns,
+        departmentColumnsByLevel,
+        totalColumns: dynamicColumns.length,
+        structure: {
+          basicFields: basicColumns.length,
+          departmentLevels: Object.keys(departmentColumnsByLevel).length,
+          totalDepartments: departmentColumns.length
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Download Department Template
 exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
   try {
@@ -647,29 +810,14 @@ exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
         .json({ success: false, message: "Хэсэг олдсонгүй" });
     }
 
-    // Get hierarchy for this specific department
-    const departmentHierarchy = getDepartmentHierarchyForTemplate([department]);
-
     const workbook = new excel.Workbook();
     const worksheet = workbook.addWorksheet("Ажилтан");
 
-    const columns = [
-      { header: "Овог", key: "Овог", width: 20 },
-      { header: "Нэр", key: "Нэр", width: 20 },
-      { header: "Регистр", key: "Регистр", width: 20 },
-      { header: "Хувийн дугаар", key: "Хувийн дугаар", width: 20 },
-      { header: "Утас", key: "Утас", width: 20 },
-    ];
-
-    // Add department columns based on actual hierarchy
-    departmentHierarchy.forEach((dept, index) => {
-      columns.push({
-        header: dept.name,
-        key: `dept_${index}`,
-        width: 25,
-      });
-    });
-
+    // Generate dynamic columns for this specific department
+    const columns = generateDynamicColumns([department]);
+    
+    console.log(`Generated dynamic columns for ${department.ner}:`, columns.map(c => c.header));
+    
     worksheet.columns = columns;
 
     res.setHeader(
@@ -693,36 +841,52 @@ exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
 exports.ajiltanExport = asyncHandler(async (req, res, next) => {
   try {
     const employees = await Ajiltan.findWithDepartments();
-    const flatDepartments = await getFlatDepartments();
-    const maxLevel = Math.max(...flatDepartments.map((d) => d.level));
-
+    const allDepartments = await Buleg.find({});
+    
     const workbook = new excel.Workbook();
     const worksheet = workbook.addWorksheet("Ажилтан");
 
-    const headers = ["Овог", "Нэр", "Регистр", "Хувийн дугаар", "Утас"];
-    for (let level = 0; level <= maxLevel; level++) {
-      headers.push(`Хэсэг ${level + 1}`);
-    }
-
+    // Generate dynamic headers based on actual department structure
+    const dynamicColumns = generateDynamicColumns(allDepartments);
+    const headers = dynamicColumns.map(col => col.header);
+    
+    console.log("Export headers:", headers);
+    
     worksheet.addRow(headers);
 
-    employees.forEach((employee) => {
-      const row = [
-        employee.ovog,
-        employee.ner,
-        employee.register,
-        employee.nevtrekhNer,
-        employee.utas,
-        employee.porool,
-        employee.zurgiinId,
-      ];
-
-      const departmentPath = employee.departmentAssignments
-        .sort((a, b) => a.level - b.level)
-        .map((dept) => dept.departmentName);
-
-      for (let level = 0; level <= maxLevel; level++) {
-        row.push(departmentPath[level] || "");
+    employees.forEach((employee, index) => {
+      const row = [];
+      
+      // Add basic employee data
+      row.push(index + 1); // №
+      row.push(""); // Зураг (empty for now)
+      row.push(employee.ovog || "");
+      row.push(employee.ner || "");
+      row.push(employee.register || "");
+      row.push(employee.nevtrekhNer || "");
+      row.push(employee.utas || "");
+      row.push(employee.erkh || "");
+      
+      // Add department data for each column
+      const departmentAssignments = employee.departmentAssignments || [];
+      
+      for (let i = 8; i < dynamicColumns.length; i++) { // Skip basic columns
+        const column = dynamicColumns[i];
+        
+        if (column.departmentId) {
+          // Find if this employee is assigned to this department
+          const assignment = departmentAssignments.find(
+            assignment => assignment.departmentId.toString() === column.departmentId.toString()
+          );
+          
+          if (assignment) {
+            row.push("✓"); // Mark with checkmark if assigned
+          } else {
+            row.push(""); // Empty if not assigned
+          }
+        } else {
+          row.push(""); // Empty for non-department columns
+        }
       }
 
       worksheet.addRow(row);
