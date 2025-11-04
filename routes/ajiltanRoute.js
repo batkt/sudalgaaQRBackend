@@ -55,9 +55,20 @@ router.get("/downloadTemplate/:departmentId", downloadDepartmentTemplate);
 // Helper function
 function duusakhOgnooAvya(ugugdul, onFinish, next) {
   // Build URL with query parameters for GET request
+  // The API returns paginated results, so we need to include pagination params
   const url = new URL("http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya");
-  url.searchParams.append("register", ugugdul.register);
+  
+  // Add register filter if provided
+  if (ugugdul.register) {
+    url.searchParams.append("register", ugugdul.register);
+  }
+  
+  // Add system parameter
   url.searchParams.append("system", ugugdul.system || "qrShuukh");
+  
+  // Add pagination parameters to get all results
+  url.searchParams.append("khuudasniiDugaar", "1");
+  url.searchParams.append("khuudasniiKhemjee", "100");
   
   console.log("📡 duusakhOgnooAvya API call:", {
     url: url.toString(),
