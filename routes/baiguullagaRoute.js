@@ -44,7 +44,10 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
         });
         
         if (req.body.ajiltan) {
-          let ajiltan = new Ajiltan(db.erunkhiiKholbolt)(req.body.ajiltan);
+          // Get Ajiltan model for the specific connection
+          // Use the connection's model method to get the model
+          const AjiltanModel = db.erunkhiiKholbolt.kholbolt.model('ajiltan');
+          let ajiltan = new AjiltanModel(req.body.ajiltan);
           ajiltan.erkh = "Admin";
           ajiltan.baiguullagiinId = result._id;
           ajiltan.baiguullagiinNer = result.ner;
