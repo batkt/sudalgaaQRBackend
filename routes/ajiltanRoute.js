@@ -54,17 +54,69 @@ router.get("/downloadTemplate/:departmentId", downloadDepartmentTemplate);
 
 // Helper function
 function duusakhOgnooAvya(ugugdul, onFinish, next) {
-  request.get(
+  console.log("📡 duusakhOgnooAvya API call:", {
+    url: "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
+    body: ugugdul,
+  });
+  
+  // Try POST instead of GET (GET requests typically don't have bodies)
+  request.post(
     "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
     { json: true, body: ugugdul },
     (err, res1, body) => {
-      if (err) next(err);
-      else {
+      if (err) {
+        console.error("❌ duusakhOgnooAvya request error:", err);
+        next(err);
+      } else {
+        console.log("📡 duusakhOgnooAvya API response:", {
+          statusCode: res1?.statusCode,
+          statusMessage: res1?.statusMessage,
+          body: body,
+        });
         onFinish(body);
       }
     }
   );
 }
+
+// Test route to call duusakhOgnooAvya directly
+router.post("/testDuusakhOgnooAvya", asyncHandler(async (req, res, next) => {
+  try {
+    const { register, system = "sukh" } = req.body;
+    
+    if (!register) {
+      return res.status(400).json({
+        success: false,
+        message: "register заавал бөглөх шаардлагатай!",
+      });
+    }
+    
+    console.log("🧪 Testing duusakhOgnooAvya with:", { register, system });
+    
+    duusakhOgnooAvya(
+      { register, system },
+      (khariu) => {
+        console.log("🧪 Test response:", khariu);
+        res.status(200).json({
+          success: true,
+          message: "API call completed",
+          request: { register, system },
+          response: khariu,
+        });
+      },
+      (err) => {
+        console.error("🧪 Test error:", err);
+        res.status(500).json({
+          success: false,
+          message: "API call failed",
+          error: err.message,
+        });
+      }
+    );
+  } catch (error) {
+    next(error);
+  }
+}));
 
 // Authentication
 router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
