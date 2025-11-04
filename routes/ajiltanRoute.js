@@ -143,13 +143,50 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   // Note: register must be a valid organization registration number, not a username
   const registerForLicense = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer;
   
+  // Common username patterns that are not valid organization registers
+  const invalidRegisterPatterns = ['Admin', 'admin', 'CAdmin', 'CAdmin1', 'user', 'User', 'test', 'Test'];
+  const looksLikeUsername = invalidRegisterPatterns.includes(registerForLicense) || 
+                            (registerForLicense && registerForLicense.length < 8 && !/^\d+$/.test(registerForLicense));
+  
   console.log("🔍 Employee data for license check:", {
     hasBaiguullaga: !!baiguullaga,
     baiguullagaRegister: baiguullaga?.register || "N/A",
     ajiltanRegister: ajiltan.register || "N/A",
     ajiltanNevtrekhNer: ajiltan.nevtrekhNer || "N/A",
     usingRegister: registerForLicense,
+    looksLikeUsername: looksLikeUsername,
   });
+
+  // Skip license check if register looks like a username or no valid baiguullaga
+  if (looksLikeUsername || !baiguullaga) {
+    console.log("⚠️ Skipping license check - register looks invalid or no baiguullaga found");
+    console.log("⚠️ To get license data, ensure employee has a baiguullaga with valid register");
+    
+    // Generate JWT without license expiration date
+    console.log("🔍 Generating JWT token without license data...");
+    const jwt = await ajiltan.tokenUusgeye(null, null);
+    console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
+    butsaakhObject.token = jwt;
+    butsaakhObject.duusakhOgnoo = null;
+    butsaakhObject.salbaruud = null;
+
+    if (!!butsaakhObject.result) {
+      butsaakhObject.result = JSON.parse(JSON.stringify(butsaakhObject.result));
+      butsaakhObject.result.salbaruud = null;
+      butsaakhObject.result.duusakhOgnoo = null;
+    }
+
+    //doorxiig zogsooliinPos-d zoriulj oruulaw
+    if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
+      butsaakhObject.result.zogsoolNer = baiguullaga?.tokhirgoo?.zogsoolNer;
+    else if (baiguullaga?.ner)
+      butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+    else
+      butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
+
+    console.log("✅ ajiltanNevtrey completed successfully (without license data), sending response");
+    return res.status(200).json(butsaakhObject);
+  }
   
   console.log("🔍 Calling duusakhOgnooAvya with:", {
     register: registerForLicense,
