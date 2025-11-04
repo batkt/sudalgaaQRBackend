@@ -70,7 +70,7 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 // Authentication
 router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
-  const { db, NevtreltiinTuukh, nevtreltiinTuukhKhadgalya } = require("zevbackv2");
+  const { db } = require("zevbackv2");
   const mongoose = require("mongoose");
 
   // Use main mongoose connection (qrSudalgaa) for Ajiltan queries
@@ -208,7 +208,6 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
 
           var source = req.headers["user-agent"];
           var ua = useragent.parse(source);
-          var tuukh = new NevtreltiinTuukh(db.erunkhiiKholbolt)();
           tuukh.ajiltniiId = ajiltan._id;
           tuukh.ajiltniiNer = ajiltan.ner;
           tuukh.ognoo = new Date();
@@ -230,7 +229,6 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
           tuukh.baiguullagiinRegister = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer || null;
 
           console.log("🔍 Saving login history...");
-          await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
           console.log("✅ Login history saved successfully");
 
           console.log(
@@ -274,7 +272,6 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
 
           var source = req.headers["user-agent"];
           var ua = useragent.parse(source);
-          var tuukh = new NevtreltiinTuukh(db.erunkhiiKholbolt)();
           tuukh.ajiltniiId = ajiltan._id;
           tuukh.ajiltniiNer = ajiltan.ner;
           tuukh.ognoo = new Date();
@@ -296,7 +293,6 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
           tuukh.baiguullagiinRegister = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer || null;
 
           console.log("🔍 Saving login history...");
-          await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
           console.log("✅ Login history saved successfully");
 
           console.log(
