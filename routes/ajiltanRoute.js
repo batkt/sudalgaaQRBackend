@@ -16,7 +16,6 @@ const Baiguullaga = require("../models/baiguullaga");
 const { crud, UstsanBarimt } = require("zevback");
 const request = require("request");
 const asyncHandler = require("express-async-handler");
-const useragent = require("express-useragent");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage });
@@ -206,34 +205,6 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
           else
             butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
 
-          var source = req.headers["user-agent"];
-          var ua = useragent.parse(source);
-          tuukh.ajiltniiId = ajiltan._id;
-          tuukh.ajiltniiNer = ajiltan.ner;
-          tuukh.ognoo = new Date();
-          tuukh.uildliinSystem = ua.os;
-          tuukh.ip = req.headers["x-real-ip"];
-
-          if (tuukh.ip && tuukh.ip.substr(0, 7) == "::ffff:") {
-            tuukh.ip = tuukh.ip.substr(7);
-          }
-
-          ua = Object.keys(ua).reduce(function (r, e) {
-            if (ua[e]) r[e] = ua[e];
-            return r;
-          }, {});
-
-          tuukh.browser = ua.browser;
-          tuukh.useragent = ua;
-          tuukh.baiguullagiinId = ajiltan.baiguullagiinId || null;
-          tuukh.baiguullagiinRegister = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer || null;
-
-          console.log("🔍 Saving login history...");
-          console.log("✅ Login history saved successfully");
-
-          console.log(
-            "✅ ajiltanNevtrey completed successfully, sending response"
-          );
           res.status(200).json(butsaakhObject);
         } else {
           // License check failed - allow login to proceed without license data
@@ -269,31 +240,6 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
             butsaakhObject.result.zogsoolNer = baiguullaga.ner;
           else
             butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
-
-          var source = req.headers["user-agent"];
-          var ua = useragent.parse(source);
-          tuukh.ajiltniiId = ajiltan._id;
-          tuukh.ajiltniiNer = ajiltan.ner;
-          tuukh.ognoo = new Date();
-          tuukh.uildliinSystem = ua.os;
-          tuukh.ip = req.headers["x-real-ip"];
-
-          if (tuukh.ip && tuukh.ip.substr(0, 7) == "::ffff:") {
-            tuukh.ip = tuukh.ip.substr(7);
-          }
-
-          ua = Object.keys(ua).reduce(function (r, e) {
-            if (ua[e]) r[e] = ua[e];
-            return r;
-          }, {});
-
-          tuukh.browser = ua.browser;
-          tuukh.useragent = ua;
-          tuukh.baiguullagiinId = ajiltan.baiguullagiinId || null;
-          tuukh.baiguullagiinRegister = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer || null;
-
-          console.log("🔍 Saving login history...");
-          console.log("✅ Login history saved successfully");
 
           console.log(
             "✅ ajiltanNevtrey completed successfully (without license data), sending response"
