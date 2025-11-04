@@ -72,7 +72,18 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db, NevtreltiinTuukh, nevtreltiinTuukhKhadgalya } = require("zevbackv2");
 
-  const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
+  // Get Ajiltan model from the connection
+  const connection = db.erunkhiiKholbolt.kholbolt;
+  let AjiltanModel;
+  try {
+    AjiltanModel = connection.model('ajiltan');
+  } catch (err) {
+    // Schema not registered, register it now
+    const ajiltanSchema = require('../models/ajiltan').schema;
+    AjiltanModel = connection.model('ajiltan', ajiltanSchema);
+  }
+
+  const ajiltan = await AjiltanModel
     .findOne()
     .select("+nuutsUg")
     .where("nevtrekhNer")
@@ -108,7 +119,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     });
 
     if (baiguullagaByRegister) {
-      await Ajiltan(db.erunkhiiKholbolt).updateOne(
+      await AjiltanModel.updateOne(
         { _id: ajiltan._id },
         {
           $set: {
