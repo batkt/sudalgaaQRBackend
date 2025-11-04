@@ -48,8 +48,8 @@ module.exports = function a(conn) {
     }
   }
   
-  // If still no valid connection, try to use default mongoose connection
-  if (!conn) {
+  // If conn is null, undefined, or empty object, use default mongoose connection
+  if (!conn || (typeof conn === 'object' && Object.keys(conn).length === 0)) {
     return BaiguullagaModel;
   }
   
