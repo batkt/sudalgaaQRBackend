@@ -140,7 +140,16 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   }
 
   // Always check license expiration - use baiguullaga register or employee register as fallback
+  // Note: register must be a valid organization registration number, not a username
   const registerForLicense = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer;
+  
+  console.log("🔍 Employee data for license check:", {
+    hasBaiguullaga: !!baiguullaga,
+    baiguullagaRegister: baiguullaga?.register || "N/A",
+    ajiltanRegister: ajiltan.register || "N/A",
+    ajiltanNevtrekhNer: ajiltan.nevtrekhNer || "N/A",
+    usingRegister: registerForLicense,
+  });
   
   console.log("🔍 Calling duusakhOgnooAvya with:", {
     register: registerForLicense,
