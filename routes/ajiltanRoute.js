@@ -12,6 +12,7 @@ const {
 } = require("../controller/asuulgaController");
 const multer = require("multer");
 const Ajiltan = require("../models/ajiltan");
+const Baiguullaga = require("../models/baiguullaga");
 const { crud, UstsanBarimt } = require("zevback");
 const request = require("request");
 const asyncHandler = require("express-async-handler");
@@ -69,7 +70,7 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 // Authentication
 router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
-  const { db } = require("zevbackv2");
+  const { db, NevtreltiinTuukh, nevtreltiinTuukhKhadgalya } = require("zevbackv2");
 
   const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
     .findOne()
@@ -102,9 +103,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
       throw new Error("Ажилтны байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    const baiguullagaByRegister = await Baiguullaga(
-      db.erunkhiiKholbolt
-    ).findOne({
+    const baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({
       register: ajiltan.nevtrekhNer,
     });
 
@@ -120,8 +119,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
       );
       baiguullaga = baiguullagaByRegister;
     } else {
-      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt)
-        .find({}, { _id: 1, ner: 1, register: 1 })
+      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({}, { _id: 1, ner: 1, register: 1 })
         .limit(10)
         .lean();
 

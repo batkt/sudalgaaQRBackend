@@ -18,7 +18,10 @@
     "multer": "^2.0.2",
     "qrcode": "^1.5.3",
     "zevback": "^1.1.43",
+    "zevbackv2": "^1.0.0",
     "express-useragent": "^1.0.15",
+    "express-async-handler": "^1.2.0",
+    "request": "^2.88.2",
     "zuragpack": "^1.0.17"
   }
 }
