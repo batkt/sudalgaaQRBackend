@@ -7,13 +7,6 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     
-    // Debug: log the structure of db.erunkhiiKholbolt
-    console.log("db.erunkhiiKholbolt structure:", {
-      hasKholbolt: !!db.erunkhiiKholbolt?.kholbolt,
-      hasModel: typeof db.erunkhiiKholbolt?.model === 'function',
-      keys: db.erunkhiiKholbolt ? Object.keys(db.erunkhiiKholbolt) : 'null/undefined'
-    });
-
     const baiguullaga = new Baiguullaga(db.erunkhiiKholbolt)(req.body);
 
     console.log("------------->" + JSON.stringify(baiguullaga));
@@ -44,9 +37,17 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
         });
         
         if (req.body.ajiltan) {
-          // Get Ajiltan model for the specific connection
-          // Use the connection's model method to get the model
-          const AjiltanModel = db.erunkhiiKholbolt.kholbolt.model('ajiltan');
+          // Get Ajiltan model from the connection
+          // Register schema if not already registered, then get the model
+          const connection = db.erunkhiiKholbolt.kholbolt;
+          let AjiltanModel;
+          try {
+            AjiltanModel = connection.model('ajiltan');
+          } catch (err) {
+            // Schema not registered, register it now using the schema from the model file
+            const ajiltanSchema = require('../models/ajiltan').schema;
+            AjiltanModel = connection.model('ajiltan', ajiltanSchema);
+          }
           let ajiltan = new AjiltanModel(req.body.ajiltan);
           ajiltan.erkh = "Admin";
           ajiltan.baiguullagiinId = result._id;

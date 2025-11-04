@@ -117,4 +117,6 @@ AjiltanModel.estimatedDocumentCount().then((count) => {
   }
 });
 
+// Export both the model and schema
 module.exports = AjiltanModel;
+module.exports.schema = ajiltanSchema;
