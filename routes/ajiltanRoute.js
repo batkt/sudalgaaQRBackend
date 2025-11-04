@@ -94,7 +94,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
-  // Try to find baiguullaga - first by ID if available, then by register
+  // Try to find baiguullaga - automatically associate if not found
   // Baiguullaga is optional - employees can login without it
   var baiguullaga = null;
   
@@ -104,14 +104,31 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     );
   }
 
-  // If baiguullaga not found, try fallback: match by register = nevtrekhNer
+  // If baiguullaga not found, try multiple fallback strategies
   if (!baiguullaga) {
-    const baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+    // Strategy 1: Match by register = nevtrekhNer
+    let baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({
       register: ajiltan.nevtrekhNer,
     });
 
+    // Strategy 2: Match by register = employee's register field (if it's a valid register)
+    if (!baiguullagaByRegister && ajiltan.register && ajiltan.register !== ajiltan.nevtrekhNer) {
+      const invalidPatterns = ['Admin', 'admin', 'CAdmin', 'CAdmin1', 'user', 'User', 'test', 'Test'];
+      if (!invalidPatterns.includes(ajiltan.register) && ajiltan.register.length >= 8) {
+        baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+          register: ajiltan.register,
+        });
+      }
+    }
+
+    // Strategy 3: If still not found, use the first available baiguullaga
+    if (!baiguullagaByRegister) {
+      baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({}).sort({ createdAt: -1 });
+      console.log("🔍 No baiguullaga matched by register, using first available:", baiguullagaByRegister?._id);
+    }
+
     if (baiguullagaByRegister) {
-      // Update the employee with the found baiguullaga (in qrSudalgaa database)
+      // Automatically update the employee with the found baiguullaga (in qrSudalgaa database)
       await Ajiltan.updateOne(
         { _id: ajiltan._id },
         {
@@ -122,9 +139,15 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
         }
       );
       baiguullaga = baiguullagaByRegister;
+      console.log("✅ Automatically associated employee with baiguullaga:", {
+        ajiltanId: ajiltan._id,
+        baiguullagaId: baiguullaga._id,
+        baiguullagaNer: baiguullaga.ner,
+        register: baiguullaga.register,
+      });
+    } else {
+      console.log("⚠️ No baiguullaga found in database - employee will login without license data");
     }
-    // If no baiguullaga found, that's okay - employee can still login
-    // License check will be skipped if baiguullaga is null
   }
 
   var butsaakhObject = {

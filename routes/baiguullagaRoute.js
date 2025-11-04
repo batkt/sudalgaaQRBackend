@@ -3,6 +3,7 @@ const router = express.Router();
 const Ajiltan = require("../models/ajiltan");
 const Baiguullaga = require("../models/baiguullaga");
 
+
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
