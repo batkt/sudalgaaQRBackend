@@ -32,31 +32,21 @@ const baiguullagaSchema = new Schema(
 // Default model for main connection
 const BaiguullagaModel = mongoose.model("baiguullaga", baiguullagaSchema);
 
-// Function to get model for specific connection (like zevbackv2 pattern)
-function getBaiguullagaModel(connection) {
-  if (!connection) {
-    return BaiguullagaModel;
+// Export function that matches zevbackv2 pattern
+module.exports = function a(conn) {
+  // If it's already a mongoose connection, use it directly
+  if (conn && conn.model) {
+    // It's already a mongoose connection
+    return conn.model("baiguullaga", baiguullagaSchema);
   }
-  // If connection is provided, return a model bound to that connection
-  if (connection.models && connection.models.baiguullaga) {
-    return connection.models.baiguullaga;
+  
+  // Otherwise, extract kholbolt (expected pattern from zevbackv2)
+  if (!conn || !conn.kholbolt) {
+    throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
   }
-  return connection.model("baiguullaga", baiguullagaSchema);
-}
-
-// Export function that can be called with connection or used as model directly
-module.exports = function(connection) {
-  if (connection) {
-    // Return model class that can be instantiated
-    const Model = getBaiguullagaModel(connection);
-    return function(data) {
-      return new Model(data);
-    };
-  }
-  // If no connection, return the default model
-  return BaiguullagaModel;
+  conn = conn.kholbolt;
+  
+  // Return model class that can be instantiated or used for queries
+  return conn.model("baiguullaga", baiguullagaSchema);
 };
-
-// Also export the default model for direct use
-module.exports.default = BaiguullagaModel;
 
