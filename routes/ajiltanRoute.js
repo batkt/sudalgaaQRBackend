@@ -57,7 +57,7 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
   // Build URL with query parameters for GET request
   const url = new URL("http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya");
   url.searchParams.append("register", ugugdul.register);
-  url.searchParams.append("system", ugugdul.system || "sukh");
+  url.searchParams.append("system", ugugdul.system || "qrShuukh");
   
   console.log("📡 duusakhOgnooAvya API call:", {
     url: url.toString(),
@@ -84,45 +84,6 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
     }
   );
 }
-
-// Test route to call duusakhOgnooAvya directly
-router.post("/testDuusakhOgnooAvya", asyncHandler(async (req, res, next) => {
-  try {
-    const { register, system = "sukh" } = req.body;
-    
-    if (!register) {
-      return res.status(400).json({
-        success: false,
-        message: "register заавал бөглөх шаардлагатай!",
-      });
-    }
-    
-    console.log("🧪 Testing duusakhOgnooAvya with:", { register, system });
-    
-    duusakhOgnooAvya(
-      { register, system },
-      (khariu) => {
-        console.log("🧪 Test response:", khariu);
-        res.status(200).json({
-          success: true,
-          message: "API call completed",
-          request: { register, system },
-          response: khariu,
-        });
-      },
-      (err) => {
-        console.error("🧪 Test error:", err);
-        res.status(500).json({
-          success: false,
-          message: "API call failed",
-          error: err.message,
-        });
-      }
-    );
-  } catch (error) {
-    next(error);
-  }
-}));
 
 // Authentication
 router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
@@ -271,11 +232,11 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   
   console.log("🔍 Calling duusakhOgnooAvya with:", {
     register: registerForLicense,
-    system: "sukh",
+    system: "qrShuukh",
   });
 
   duusakhOgnooAvya(
-    { register: registerForLicense, system: "sukh" },
+    { register: registerForLicense, system: "qrShuukh" },
     async (khariu) => {
       try {
         console.log("🔍 duusakhOgnooAvya response:", khariu);
