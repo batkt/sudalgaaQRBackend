@@ -54,15 +54,21 @@ router.get("/downloadTemplate/:departmentId", downloadDepartmentTemplate);
 
 // Helper function
 function duusakhOgnooAvya(ugugdul, onFinish, next) {
+  // Build URL with query parameters for GET request
+  const url = new URL("http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya");
+  url.searchParams.append("register", ugugdul.register);
+  url.searchParams.append("system", ugugdul.system || "sukh");
+  
   console.log("📡 duusakhOgnooAvya API call:", {
-    url: "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
-    body: ugugdul,
+    url: url.toString(),
+    method: "GET",
+    params: ugugdul,
   });
   
-  // Try POST instead of GET (GET requests typically don't have bodies)
-  request.post(
-    "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
-    { json: true, body: ugugdul },
+  // Use GET request with query parameters
+  request.get(
+    url.toString(),
+    { json: true },
     (err, res1, body) => {
       if (err) {
         console.error("❌ duusakhOgnooAvya request error:", err);
