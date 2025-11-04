@@ -30,7 +30,7 @@ mongoose
       const { db } = require("zevbackv2");
       db.kholboltUusgey(
         app,
-        "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+        "mongodb://admin:Br1stelback1@127.0.0.1:27017/qrSudalgaa?authSource=admin"
       );
       console.log("zevbackv2 connection initialized");
     } catch (zevbackError) {
