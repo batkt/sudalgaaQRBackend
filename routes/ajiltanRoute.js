@@ -238,8 +238,71 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
           );
           res.status(200).json(butsaakhObject);
         } else {
-          console.log("❌ duusakhOgnooAvya failed:", khariu.msg);
-          throw new Error(khariu.msg);
+          // License check failed - allow login to proceed without license data
+          console.log("⚠️ duusakhOgnooAvya failed (non-critical):", khariu.msg || "Unknown error");
+          console.log("⚠️ Proceeding with login without license data");
+          
+          // Generate JWT without license expiration date
+          console.log("🔍 Generating JWT token without license data...");
+          const jwt = await ajiltan.tokenUusgeye(
+            null,
+            null
+          );
+          console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
+          butsaakhObject.token = jwt;
+
+          // Set default values for license-related fields
+          butsaakhObject.duusakhOgnoo = null;
+          butsaakhObject.salbaruud = null;
+
+          if (!!butsaakhObject.result) {
+            butsaakhObject.result = JSON.parse(
+              JSON.stringify(butsaakhObject.result)
+            );
+            butsaakhObject.result.salbaruud = null;
+            butsaakhObject.result.duusakhOgnoo = null;
+          }
+
+          //doorxiig zogsooliinPos-d zoriulj oruulaw
+          if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
+            butsaakhObject.result.zogsoolNer =
+              baiguullaga?.tokhirgoo?.zogsoolNer;
+          else if (baiguullaga?.ner)
+            butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+          else
+            butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
+
+          var source = req.headers["user-agent"];
+          var ua = useragent.parse(source);
+          var tuukh = new NevtreltiinTuukh(db.erunkhiiKholbolt)();
+          tuukh.ajiltniiId = ajiltan._id;
+          tuukh.ajiltniiNer = ajiltan.ner;
+          tuukh.ognoo = new Date();
+          tuukh.uildliinSystem = ua.os;
+          tuukh.ip = req.headers["x-real-ip"];
+
+          if (tuukh.ip && tuukh.ip.substr(0, 7) == "::ffff:") {
+            tuukh.ip = tuukh.ip.substr(7);
+          }
+
+          ua = Object.keys(ua).reduce(function (r, e) {
+            if (ua[e]) r[e] = ua[e];
+            return r;
+          }, {});
+
+          tuukh.browser = ua.browser;
+          tuukh.useragent = ua;
+          tuukh.baiguullagiinId = ajiltan.baiguullagiinId || null;
+          tuukh.baiguullagiinRegister = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer || null;
+
+          console.log("🔍 Saving login history...");
+          await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
+          console.log("✅ Login history saved successfully");
+
+          console.log(
+            "✅ ajiltanNevtrey completed successfully (without license data), sending response"
+          );
+          res.status(200).json(butsaakhObject);
         }
       } catch (err) {
         console.error("❌ ajiltanNevtrey callback error:", err);
