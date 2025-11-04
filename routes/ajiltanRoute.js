@@ -101,8 +101,8 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
 
-  // Use zevbackv2 connection (turees) for Ajiltan queries - matching working system
-  const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
+  // Ajiltan is in qrSudalgaa (main connection), use default Ajiltan model
+  const ajiltan = await Ajiltan
     .findOne()
     .select("+nuutsUg")
     .where("nevtrekhNer")
@@ -140,7 +140,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     });
 
     if (baiguullagaByRegister) {
-      await Ajiltan(db.erunkhiiKholbolt).updateOne(
+      await Ajiltan.updateOne(
         { _id: ajiltan._id },
         {
           $set: {
