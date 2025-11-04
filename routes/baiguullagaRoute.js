@@ -6,6 +6,13 @@ const Baiguullaga = require("../models/baiguullaga");
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    
+    // Debug: log the structure of db.erunkhiiKholbolt
+    console.log("db.erunkhiiKholbolt structure:", {
+      hasKholbolt: !!db.erunkhiiKholbolt?.kholbolt,
+      hasModel: typeof db.erunkhiiKholbolt?.model === 'function',
+      keys: db.erunkhiiKholbolt ? Object.keys(db.erunkhiiKholbolt) : 'null/undefined'
+    });
 
     const baiguullaga = new Baiguullaga(db.erunkhiiKholbolt)(req.body);
 

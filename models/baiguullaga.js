@@ -35,18 +35,25 @@ const BaiguullagaModel = mongoose.model("baiguullaga", baiguullagaSchema);
 // Export function that matches zevbackv2 pattern
 module.exports = function a(conn) {
   // If it's already a mongoose connection, use it directly
-  if (conn && conn.model) {
+  if (conn && typeof conn.model === 'function') {
     // It's already a mongoose connection
     return conn.model("baiguullaga", baiguullagaSchema);
   }
   
-  // Otherwise, extract kholbolt (expected pattern from zevbackv2)
-  if (!conn || !conn.kholbolt) {
-    throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
+  // Check if it has kholbolt property (expected pattern from zevbackv2)
+  if (conn && conn.kholbolt) {
+    conn = conn.kholbolt;
+    if (conn && typeof conn.model === 'function') {
+      return conn.model("baiguullaga", baiguullagaSchema);
+    }
   }
-  conn = conn.kholbolt;
   
-  // Return model class that can be instantiated or used for queries
-  return conn.model("baiguullaga", baiguullagaSchema);
+  // If still no valid connection, try to use default mongoose connection
+  if (!conn) {
+    return BaiguullagaModel;
+  }
+  
+  // Last resort: throw error
+  throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
 };
 
