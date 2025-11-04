@@ -41,19 +41,21 @@ module.exports = function a(conn) {
   }
   
   // Check if it has kholbolt property (expected pattern from zevbackv2)
-  if (conn && conn.kholbolt) {
-    conn = conn.kholbolt;
-    if (conn && typeof conn.model === 'function') {
-      return conn.model("baiguullaga", baiguullagaSchema);
+  if (conn && conn.kholbolt && typeof conn.kholbolt === 'object') {
+    const kholboltConn = conn.kholbolt;
+    if (kholboltConn && typeof kholboltConn.model === 'function') {
+      return kholboltConn.model("baiguullaga", baiguullagaSchema);
     }
   }
   
-  // If conn is null, undefined, or empty object, use default mongoose connection
-  if (!conn || (typeof conn === 'object' && Object.keys(conn).length === 0)) {
+  // If conn is null, undefined, or empty object (or doesn't have valid connection), use default mongoose connection
+  if (!conn || 
+      (typeof conn === 'object' && Object.keys(conn).length === 0) ||
+      (conn && typeof conn !== 'object')) {
     return BaiguullagaModel;
   }
   
-  // Last resort: throw error
+  // Last resort: throw error (only if conn has properties but none are valid)
   throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
 };
 

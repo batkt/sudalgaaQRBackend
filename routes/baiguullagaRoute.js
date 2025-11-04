@@ -31,13 +31,18 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
     baiguullaga
       .save()
       .then((result) => {
-        db.kholboltNemye(
+        // Try to register the connection, but don't fail if it doesn't work
+        Promise.resolve(db.kholboltNemye(
           baiguullaga._id,
           req.body.baaziinNer,
           "127.0.0.1:27017",
           "admin",
           "Br1stelback1"
-        );
+        )).catch((kholboltError) => {
+          console.error("⚠️ kholboltNemye error (non-critical):", kholboltError.message);
+          // Continue execution even if connection registration fails
+        });
+        
         if (req.body.ajiltan) {
           let ajiltan = new Ajiltan(db.erunkhiiKholbolt)(req.body.ajiltan);
           ajiltan.erkh = "Admin";
