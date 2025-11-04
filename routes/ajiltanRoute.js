@@ -71,19 +71,11 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db, NevtreltiinTuukh, nevtreltiinTuukhKhadgalya } = require("zevbackv2");
+  const mongoose = require("mongoose");
 
-  // Get Ajiltan model from the connection
-  const connection = db.erunkhiiKholbolt.kholbolt;
-  let AjiltanModel;
-  try {
-    AjiltanModel = connection.model('ajiltan');
-  } catch (err) {
-    // Schema not registered, register it now
-    const ajiltanSchema = require('../models/ajiltan').schema;
-    AjiltanModel = connection.model('ajiltan', ajiltanSchema);
-  }
-
-  const ajiltan = await AjiltanModel
+  // Use main mongoose connection (qrSudalgaa) for Ajiltan queries
+  // zevbackv2 connection (turees) is only for license/baiguullaga checking
+  const ajiltan = await Ajiltan
     .findOne()
     .select("+nuutsUg")
     .where("nevtrekhNer")
@@ -103,23 +95,24 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
-  var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-    ajiltan.baiguullagiinId
-  );
+  // Try to find baiguullaga - first by ID if available, then by register
+  var baiguullaga = null;
+  
+  if (ajiltan.baiguullagiinId) {
+    baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      ajiltan.baiguullagiinId
+    );
+  }
 
   // If baiguullaga not found, try fallback: match by register = nevtrekhNer
   if (!baiguullaga) {
-    if (!ajiltan.baiguullagiinId) {
-      console.error("❌ Employee missing baiguullagiinId:", ajiltan._id);
-      throw new Error("Ажилтны байгууллагын мэдээлэл олдсонгүй!");
-    }
-
     const baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({
       register: ajiltan.nevtrekhNer,
     });
 
     if (baiguullagaByRegister) {
-      await AjiltanModel.updateOne(
+      // Update the employee with the found baiguullaga (in qrSudalgaa database)
+      await Ajiltan.updateOne(
         { _id: ajiltan._id },
         {
           $set: {
@@ -130,6 +123,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
       );
       baiguullaga = baiguullagaByRegister;
     } else {
+      // If no baiguullaga found by ID or register, show error
       const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({}, { _id: 1, ner: 1, register: 1 })
         .limit(10)
         .lean();
@@ -143,9 +137,14 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
         }))
       );
 
-      throw new Error(
-        `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId}). Ажилтны бүртгэлийг шалгана уу.`
-      );
+      if (!ajiltan.baiguullagiinId) {
+        console.error("❌ Employee missing baiguullagiinId and no baiguullaga found by register:", ajiltan._id);
+        throw new Error("Ажилтны байгууллагын мэдээлэл олдсонгүй! Админтай холбогдоно уу.");
+      } else {
+        throw new Error(
+          `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId}). Ажилтны бүртгэлийг шалгана уу.`
+        );
+      }
     }
   }
 
