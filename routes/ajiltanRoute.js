@@ -240,103 +240,170 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     async (khariu) => {
       try {
         console.log("🔍 duusakhOgnooAvya response:", khariu);
-        if (khariu.success) {
-          console.log("✅ duusakhOgnooAvya successful, processing branches...");
-          if (!!khariu.salbaruud) {
+        
+        // Check if response has jagsaalt array (actual API format) or success field (error format)
+        if (khariu.jagsaalt && Array.isArray(khariu.jagsaalt) && khariu.jagsaalt.length > 0) {
+          console.log("✅ duusakhOgnooAvya successful, processing jagsaalt...");
+          
+          // Find the matching baiguullaga in jagsaalt by register
+          const matchingJagsaal = khariu.jagsaalt.find(
+            (j) => j.register === registerForLicense
+          ) || khariu.jagsaalt[0]; // Fallback to first if no match
+          
+          const duusakhOgnoo = matchingJagsaal?.license?.duusakhOgnoo;
+          
+          if (duusakhOgnoo) {
+            console.log("✅ Found license expiration date:", duusakhOgnoo);
+            
+            // Process branches (salbaruud) from jagsaalt
             var butsaakhSalbaruud = [];
-            butsaakhSalbaruud.push({
-              salbariinId: baiguullaga?.barilguud?.[0]?._id,
-              duusakhOgnoo: khariu.duusakhOgnoo,
-            });
-
-            for await (const salbar of khariu.salbaruud) {
-              var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
-                return (
-                  !!x.licenseRegister && x.licenseRegister == salbar.register
-                );
+            if (matchingJagsaal) {
+              butsaakhSalbaruud.push({
+                salbariinId: baiguullaga?.barilguud?.[0]?._id,
+                duusakhOgnoo: duusakhOgnoo,
               });
+            }
 
-              if (!!tukhainSalbar) {
-                butsaakhSalbaruud.push({
-                  salbariinId: tukhainSalbar._id,
-                  duusakhOgnoo: salbar.license?.duusakhOgnoo,
+            // Process other branches from jagsaalt
+            for await (const jagsaal of khariu.jagsaalt) {
+              if (jagsaal.register !== registerForLicense && jagsaal.license?.duusakhOgnoo) {
+                var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
+                  return (
+                    !!x.licenseRegister && x.licenseRegister == jagsaal.register
+                  );
                 });
+
+                if (!!tukhainSalbar) {
+                  butsaakhSalbaruud.push({
+                    salbariinId: tukhainSalbar._id,
+                    duusakhOgnoo: jagsaal.license.duusakhOgnoo,
+                  });
+                }
               }
             }
             butsaakhObject.salbaruud = butsaakhSalbaruud;
-          }
 
-          console.log("🔍 Generating JWT token...");
-          const jwt = await ajiltan.tokenUusgeye(
-            khariu.duusakhOgnoo,
-            butsaakhObject.salbaruud
-          );
-          console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
-          butsaakhObject.duusakhOgnoo = khariu.duusakhOgnoo;
-
-          if (!!butsaakhObject.result) {
-            butsaakhObject.result = JSON.parse(
-              JSON.stringify(butsaakhObject.result)
+            console.log("🔍 Generating JWT token...");
+            const jwt = await ajiltan.tokenUusgeye(
+              duusakhOgnoo,
+              butsaakhObject.salbaruud
             );
-            butsaakhObject.result.salbaruud = butsaakhObject.salbaruud;
-            butsaakhObject.result.duusakhOgnoo = khariu.duusakhOgnoo;
+            console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
+            butsaakhObject.duusakhOgnoo = duusakhOgnoo;
+
+            if (!!butsaakhObject.result) {
+              butsaakhObject.result = JSON.parse(
+                JSON.stringify(butsaakhObject.result)
+              );
+              butsaakhObject.result.salbaruud = butsaakhObject.salbaruud;
+              butsaakhObject.result.duusakhOgnoo = duusakhOgnoo;
+            }
+
+            butsaakhObject.token = jwt;
+
+            //doorxiig zogsooliinPos-d zoriulj oruulaw
+            if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
+              butsaakhObject.result.zogsoolNer =
+                baiguullaga?.tokhirgoo?.zogsoolNer;
+            else if (baiguullaga?.ner)
+              butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+            else
+              butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
+
+            console.log("✅ ajiltanNevtrey completed successfully with license data");
+            res.status(200).json(butsaakhObject);
+          } else {
+            throw new Error("License expiration date not found in response");
           }
-
-          butsaakhObject.token = jwt;
-
-          //doorxiig zogsooliinPos-d zoriulj oruulaw
-          if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
-            butsaakhObject.result.zogsoolNer =
-              baiguullaga?.tokhirgoo?.zogsoolNer;
-          else if (baiguullaga?.ner)
-            butsaakhObject.result.zogsoolNer = baiguullaga.ner;
-          else
-            butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
-
-          res.status(200).json(butsaakhObject);
-        } else {
-          // License check failed - allow login to proceed without license data
-          console.log("⚠️ duusakhOgnooAvya failed (non-critical):", khariu.msg || "Unknown error");
+        } else if (khariu.success === false) {
+          // Handle error response format (like {success: false, msg: "..."})
+          console.log("⚠️ duusakhOgnooAvya failed (non-critical):", khariu.msg || "License check failed");
           console.log("⚠️ Proceeding with login without license data");
           
           // Generate JWT without license expiration date
           console.log("🔍 Generating JWT token without license data...");
-          const jwt = await ajiltan.tokenUusgeye(
-            null,
-            null
-          );
+          const jwt = await ajiltan.tokenUusgeye(null, null);
           console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
           butsaakhObject.token = jwt;
-
-          // Set default values for license-related fields
           butsaakhObject.duusakhOgnoo = null;
           butsaakhObject.salbaruud = null;
 
           if (!!butsaakhObject.result) {
-            butsaakhObject.result = JSON.parse(
-              JSON.stringify(butsaakhObject.result)
-            );
+            butsaakhObject.result = JSON.parse(JSON.stringify(butsaakhObject.result));
             butsaakhObject.result.salbaruud = null;
             butsaakhObject.result.duusakhOgnoo = null;
           }
 
           //doorxiig zogsooliinPos-d zoriulj oruulaw
           if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
-            butsaakhObject.result.zogsoolNer =
-              baiguullaga?.tokhirgoo?.zogsoolNer;
+            butsaakhObject.result.zogsoolNer = baiguullaga?.tokhirgoo?.zogsoolNer;
           else if (baiguullaga?.ner)
             butsaakhObject.result.zogsoolNer = baiguullaga.ner;
           else
             butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
 
-          console.log(
-            "✅ ajiltanNevtrey completed successfully (without license data), sending response"
-          );
+          console.log("✅ ajiltanNevtrey completed successfully (without license data)");
+          res.status(200).json(butsaakhObject);
+        } else {
+          // Unknown response format
+          console.log("⚠️ Unknown response format from license API, proceeding without license data");
+          console.log("⚠️ Response:", JSON.stringify(khariu));
+          
+          // Generate JWT without license expiration date
+          const jwt = await ajiltan.tokenUusgeye(null, null);
+          butsaakhObject.token = jwt;
+          butsaakhObject.duusakhOgnoo = null;
+          butsaakhObject.salbaruud = null;
+
+          if (!!butsaakhObject.result) {
+            butsaakhObject.result = JSON.parse(JSON.stringify(butsaakhObject.result));
+            butsaakhObject.result.salbaruud = null;
+            butsaakhObject.result.duusakhOgnoo = null;
+          }
+
+          //doorxiig zogsooliinPos-d zoriulj oruulaw
+          if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
+            butsaakhObject.result.zogsoolNer = baiguullaga?.tokhirgoo?.zogsoolNer;
+          else if (baiguullaga?.ner)
+            butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+          else
+            butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
+
+          console.log("✅ ajiltanNevtrey completed successfully (unknown response format)");
           res.status(200).json(butsaakhObject);
         }
       } catch (err) {
-        console.error("❌ ajiltanNevtrey callback error:", err);
-        next(err);
+        // If any error occurs, proceed with login without license data
+        console.error("❌ Error processing license data:", err);
+        console.log("⚠️ Proceeding with login without license data");
+        
+        try {
+          // Generate JWT without license expiration date
+          const jwt = await ajiltan.tokenUusgeye(null, null);
+          butsaakhObject.token = jwt;
+          butsaakhObject.duusakhOgnoo = null;
+          butsaakhObject.salbaruud = null;
+
+          if (!!butsaakhObject.result) {
+            butsaakhObject.result = JSON.parse(JSON.stringify(butsaakhObject.result));
+            butsaakhObject.result.salbaruud = null;
+            butsaakhObject.result.duusakhOgnoo = null;
+          }
+
+          //doorxiig zogsooliinPos-d zoriulj oruulaw
+          if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
+            butsaakhObject.result.zogsoolNer = baiguullaga?.tokhirgoo?.zogsoolNer;
+          else if (baiguullaga?.ner)
+            butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+          else
+            butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
+
+          console.log("✅ ajiltanNevtrey completed successfully (error handled)");
+          res.status(200).json(butsaakhObject);
+        } catch (jwtError) {
+          console.error("❌ Error generating JWT:", jwtError);
+          next(jwtError);
+        }
       }
     },
     next
