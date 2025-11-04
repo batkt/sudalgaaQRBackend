@@ -12,6 +12,7 @@ const { zuragPack } = require("zuragpack");
 const asuulgaRoute = require("./routes/asuulgaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const tailanRoute = require("./routes/tailanRoute");
+const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
 const dbUrl =
@@ -39,6 +40,7 @@ app.use(
 app.use(asuulgaRoute);
 app.use(ajiltanRoute);
 app.use(tailanRoute);
+app.use(baiguullagaRoute);
 
 zuragPack(app);
 app.use(aldaaBarigch);

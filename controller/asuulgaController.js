@@ -4,7 +4,6 @@ const Ajiltan = require("../models/ajiltan");
 const Buleg = require("../models/buleg");
 const xlsx = require("xlsx");
 
-// Helper functions
 function usegTooruuKhurvuulekh(useg) {
   if (!!useg) return useg.charCodeAt() - 65;
   else return 0;
@@ -14,18 +13,14 @@ function isNumeric(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
 }
 
-// Safe string trim function
 function safeTrim(value) {
   if (value && typeof value === "string") return value.trim();
   return String(value || "").trim();
 }
 
-// Check if a column contains department-like data
 function checkIfDepartmentColumn(worksheet, column, data) {
-  // Get sample values from the first few rows of this column
   const sampleValues = [];
   for (let i = 1; i < Math.min(6, data.length); i++) {
-    // Check first 5 data rows
     const cellValue = data[i][usegTooruuKhurvuulekh(column)];
     if (cellValue && String(cellValue).trim() !== "") {
       sampleValues.push(String(cellValue).trim());
@@ -39,7 +34,6 @@ function checkIfDepartmentColumn(worksheet, column, data) {
     return false;
   }
 
-  // Check if values look like department names or hierarchical identifiers
   const departmentPatterns = [
     /^\d+\.\d+/, // Pattern like "1.1", "2.3", etc.
     /^\d+\.\d+\.\d+/, // Pattern like "1.1.1", "2.3.4", etc.
@@ -52,7 +46,6 @@ function checkIfDepartmentColumn(worksheet, column, data) {
     /^[A-Za-z0-9]+$/, // Alphanumeric strings
   ];
 
-  // Check if at least 60% of sample values match department patterns
   const matchingValues = sampleValues.filter((value) =>
     departmentPatterns.some((pattern) => pattern.test(value))
   );
@@ -65,8 +58,6 @@ function checkIfDepartmentColumn(worksheet, column, data) {
 
   return isDepartment;
 }
-
-// Find department in hierarchy
 async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0, departmentValue = null) {
   if (!departmentPath || !hierarchy || departmentPath.length === 0) return [];
 
@@ -76,7 +67,6 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0, d
   for (const dept of hierarchy) {
     const deptName = safeTrim(dept.ner);
 
-    // Exact match
     if (deptName === currentDeptName) {
       const result = [
         {
@@ -106,7 +96,6 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0, d
       return result;
     }
 
-    // Fuzzy match - check if department name contains the search term or vice versa
     if (
       deptName.toLowerCase().includes(currentDeptName.toLowerCase()) ||
       currentDeptName.toLowerCase().includes(deptName.toLowerCase())
@@ -139,7 +128,6 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0, d
       return result;
     }
 
-    // Special case: if searching for simple numbers, try to match with department names that contain those numbers
     if (/^\d+$/.test(currentDeptName)) {
       const deptNameNumbers = deptName.match(/\d+/g);
       if (deptNameNumbers && deptNameNumbers.includes(currentDeptName)) {
@@ -172,7 +160,6 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0, d
       }
     }
 
-    // If no match found at current level, search in sub-departments
     if (dept.dedKhesguud && dept.dedKhesguud.length > 0) {
       const nestedResult = await findDepartmentPath(
         departmentPath,
@@ -189,13 +176,11 @@ async function findDepartmentPath(departmentPath, hierarchy, currentLevel = 0, d
   return [];
 }
 
-// Get flat department list
 async function getFlatDepartments() {
   const allDepartments = await Buleg.find({});
   return getAllDepartmentsFlat(allDepartments);
 }
 
-// Get flat department list from existing departments array
 function getAllDepartmentsFlat(allDepartments) {
   const flatDepartments = [];
 
@@ -217,13 +202,11 @@ function getAllDepartmentsFlat(allDepartments) {
   return flatDepartments;
 }
 
-// Find parent departments for a given department
 function findParentDepartments(targetDept, allDepartments, currentPath = []) {
   const parents = [];
 
   function searchParents(dept, level = 0) {
     if (dept._id.toString() === targetDept._id.toString()) {
-      // Found the target department, return the current path as parents
       return currentPath.map((parent, index) => ({
         _id: parent._id,
         ner: parent.ner,
@@ -263,7 +246,6 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
       throw new Error("Буруу файл байна!");
     }
 
-    // Map column headers
     const columnMap = {};
     const allDepartments = await Buleg.find({});
     const departmentHierarchy =
@@ -283,7 +265,6 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
           columnMap.nevtrekhNer = column;
         else if (header.includes("Утас")) columnMap.utas = column;
         else {
-          // Check if this column contains department-like data by examining sample values
           const isDepartmentColumn = checkIfDepartmentColumn(
             worksheet,
             column,
@@ -296,7 +277,6 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
               name: header,
             });
           } else {
-            // Fallback: if it's not a basic employee field and has data, treat it as department
             const hasData = data.slice(1, 4).some((row) => {
               const value = row[usegTooruuKhurvuulekh(column)];
               return value && String(value).trim() !== "";
@@ -320,29 +300,16 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
     const employees = [];
     let errors = "";
 
-    // Debug: Log detected department columns
-    console.log("=== DEBUGGING DEPARTMENT DETECTION ===");
-    console.log("Column map:", columnMap);
-    if (columnMap.departments) {
-      console.log("Detected department columns:", columnMap.departments);
-    } else {
-      console.log("No department columns detected");
-    }
-    console.log("Sample data rows:", data.slice(1, 4)); // First 3 data rows
-
-    // Force detect all columns that look like departments
     if (!columnMap.departments) {
       columnMap.departments = [];
     }
 
-    // Check all columns for department-like headers
     for (let cell in worksheet) {
       const cellStr = cell.toString();
       if (cellStr[1] === "1" && cellStr.length === 2 && worksheet[cellStr].v) {
         const header = worksheet[cellStr].v.toString();
         const column = cellStr[0];
 
-        // Skip basic employee fields
         if (
           header.includes("Овог") ||
           header.includes("Нэр") ||
@@ -353,7 +320,6 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
           continue;
         }
 
-        // Check if this looks like a department name
         const isDepartmentLike =
           /^\d+\.\d+/.test(header) ||
           /^\d+-р түвшин/.test(header) ||
@@ -397,13 +363,12 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
         nuutsUg: "123",
       });
 
-      // Process department assignments - Include parent departments
       employee.departmentAssignments = [];
       console.log(`\n=== Processing Row ${i + 2} (${employee.ner}) ===`);
 
       if (columnMap.departments) {
         const flatDepartments = getAllDepartmentsFlat(allDepartments);
-        const assignedDeptIds = new Set(); // To avoid duplicates
+        const assignedDeptIds = new Set(); 
 
         console.log(
           `Available departments:`,
@@ -415,20 +380,18 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
           const cellValue = row[usegTooruuKhurvuulekh(dept.column)];
           console.log(`Column ${dept.column} (${dept.name}): "${cellValue}"`);
 
-          // If cell has value, find matching department and its parents
           if (cellValue && safeTrim(cellValue) !== "") {
             console.log(`Looking for department: ${dept.name}`);
             const foundDept = flatDepartments.find((d) => d.ner === dept.name);
             console.log(`Found department:`, foundDept);
 
             if (foundDept) {
-              // Add the department itself
               if (!assignedDeptIds.has(foundDept._id.toString())) {
                 employee.departmentAssignments.push({
                   level: foundDept.level,
                   departmentId: foundDept._id,
                   departmentName: foundDept.ner,
-                  departmentValue: cellValue, // Store the actual cell value
+                  departmentValue: cellValue, 
                 });
                 assignedDeptIds.add(foundDept._id.toString());
                 console.log(
@@ -436,7 +399,6 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
                 );
               }
 
-              // Add all parent departments
               const parentPath = findParentDepartments(
                 foundDept,
                 allDepartments
@@ -487,7 +449,6 @@ exports.ajiltanTatya = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Get department hierarchy for template
 function getDepartmentHierarchyForTemplate(departments, level = 0) {
   const hierarchy = [];
 
@@ -510,7 +471,6 @@ function getDepartmentHierarchyForTemplate(departments, level = 0) {
   return hierarchy;
 }
 
-// Excel Template Download
 exports.ajiltanZagvarAvya = asyncHandler(async (req, res, next) => {
   try {
     const allDepartments = await Buleg.find({});
@@ -528,7 +488,6 @@ exports.ajiltanZagvarAvya = asyncHandler(async (req, res, next) => {
       { header: "Утас", key: "Утас", width: 20 },
     ];
 
-    // Add department columns based on actual hierarchy
     departmentHierarchy.forEach((dept, index) => {
       columns.push({
         header: dept.name,
@@ -610,7 +569,6 @@ exports.ajiltanNemekh = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Get Department Hierarchy
 exports.getDepartmentHierarchy = asyncHandler(async (req, res, next) => {
   try {
     const allDepartments = await Buleg.find({});
@@ -620,7 +578,6 @@ exports.getDepartmentHierarchy = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Get Flat Departments
 exports.getDepartmentsFlat = asyncHandler(async (req, res, next) => {
   try {
     const flatDepartments = await getFlatDepartments();
@@ -630,7 +587,6 @@ exports.getDepartmentsFlat = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Get Department Templates
 exports.getDepartmentTemplates = asyncHandler(async (req, res, next) => {
   try {
     const allDepartments = await Buleg.find({});
@@ -646,7 +602,6 @@ exports.getDepartmentTemplates = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Download Department Template
 exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
   try {
     const { departmentId } = req.params;
@@ -658,7 +613,6 @@ exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
         .json({ success: false, message: "Хэсэг олдсонгүй" });
     }
 
-    // Get hierarchy for this specific department
     const departmentHierarchy = getDepartmentHierarchyForTemplate([department]);
 
     const workbook = new excel.Workbook();
@@ -672,7 +626,6 @@ exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
       { header: "Утас", key: "Утас", width: 20 },
     ];
 
-    // Add department columns based on actual hierarchy
     departmentHierarchy.forEach((dept, index) => {
       columns.push({
         header: dept.name,
@@ -695,38 +648,6 @@ exports.downloadDepartmentTemplate = asyncHandler(async (req, res, next) => {
     );
 
     return workbook.xlsx.write(res).then(() => res.status(200).end());
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Create Test Employee
-exports.createTestEmployee = asyncHandler(async (req, res, next) => {
-  try {
-    const testEmployee = new Ajiltan({
-      ovog: "Test",
-      ner: "Employee",
-      register: "TEST123456",
-      utas: "12345678",
-      nevtrekhNer: "testuser",
-      departmentAssignments: [
-        {
-          level: 0,
-          departmentId: "68e7bcd411b69701acab5ba2",
-          departmentName: "Шүүхийн шийдвэр гүйцэтгэх ерөнхий газар",
-          departmentValue: "Test Cell Value"
-        }
-      ],
-      nuutsUg: "123",
-    });
-
-    const savedEmployee = await testEmployee.save();
-    
-    res.status(201).json({
-      success: true,
-      message: "Test employee created successfully",
-      data: savedEmployee,
-    });
   } catch (error) {
     next(error);
   }
