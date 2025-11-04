@@ -100,11 +100,9 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
-  const mongoose = require("mongoose");
 
-  // Use main mongoose connection (qrSudalgaa) for Ajiltan queries
-  // zevbackv2 connection (turees) is only for license/baiguullaga checking
-  const ajiltan = await Ajiltan
+  // Use zevbackv2 connection (turees) for Ajiltan queries - matching working system
+  const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
     .findOne()
     .select("+nuutsUg")
     .where("nevtrekhNer")
@@ -124,42 +122,25 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     throw new Error("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
-  // Try to find baiguullaga - automatically associate if not found
-  // Baiguullaga is optional - employees can login without it
-  var baiguullaga = null;
-  
-  if (ajiltan.baiguullagiinId) {
-    baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      ajiltan.baiguullagiinId
-    );
-  }
+  var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+    ajiltan.baiguullagiinId
+  );
 
-  // If baiguullaga not found, try multiple fallback strategies
+  // If baiguullaga not found, try fallback: match by register = nevtrekhNer
   if (!baiguullaga) {
-    // Strategy 1: Match by register = nevtrekhNer
-    let baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+    if (!ajiltan.baiguullagiinId) {
+      console.error("❌ Employee missing baiguullagiinId:", ajiltan._id);
+      throw new Error("Ажилтны байгууллагын мэдээлэл олдсонгүй!");
+    }
+
+    const baiguullagaByRegister = await Baiguullaga(
+      db.erunkhiiKholbolt
+    ).findOne({
       register: ajiltan.nevtrekhNer,
     });
 
-    // Strategy 2: Match by register = employee's register field (if it's a valid register)
-    if (!baiguullagaByRegister && ajiltan.register && ajiltan.register !== ajiltan.nevtrekhNer) {
-      const invalidPatterns = ['Admin', 'admin', 'CAdmin', 'CAdmin1', 'user', 'User', 'test', 'Test'];
-      if (!invalidPatterns.includes(ajiltan.register) && ajiltan.register.length >= 8) {
-        baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-          register: ajiltan.register,
-        });
-      }
-    }
-
-    // Strategy 3: If still not found, use the first available baiguullaga
-    if (!baiguullagaByRegister) {
-      baiguullagaByRegister = await Baiguullaga(db.erunkhiiKholbolt).findOne({}).sort({ createdAt: -1 });
-      console.log("🔍 No baiguullaga matched by register, using first available:", baiguullagaByRegister?._id);
-    }
-
     if (baiguullagaByRegister) {
-      // Automatically update the employee with the found baiguullaga (in qrSudalgaa database)
-      await Ajiltan.updateOne(
+      await Ajiltan(db.erunkhiiKholbolt).updateOne(
         { _id: ajiltan._id },
         {
           $set: {
@@ -169,14 +150,23 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
         }
       );
       baiguullaga = baiguullagaByRegister;
-      console.log("✅ Automatically associated employee with baiguullaga:", {
-        ajiltanId: ajiltan._id,
-        baiguullagaId: baiguullaga._id,
-        baiguullagaNer: baiguullaga.ner,
-        register: baiguullaga.register,
-      });
     } else {
-      console.log("⚠️ No baiguullaga found in database - employee will login without license data");
+      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt)
+        .find({}, { _id: 1, ner: 1, register: 1 })
+        .limit(10)
+        .lean();
+
+      console.error(
+        "📋 Available organizations:",
+        allBaiguullaguud.map((b) => ({
+          _id: b._id.toString(),
+          ner: b.ner,
+          register: b.register,
+        }))
+      );
+      throw new Error(
+        `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId}). Ажилтны бүртгэлийг шалгана уу.`
+      );
     }
   }
 
@@ -192,73 +182,79 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
     });
   }
 
-  // Always check license expiration - use baiguullaga register or employee register as fallback
-  // Note: register must be a valid organization registration number, not a username
-  const registerForLicense = baiguullaga?.register || ajiltan.register || ajiltan.nevtrekhNer;
-  
-  // Common username patterns that are not valid organization registers
-  const invalidRegisterPatterns = ['Admin', 'admin', 'CAdmin', 'CAdmin1', 'user', 'User', 'test', 'Test'];
-  const looksLikeUsername = invalidRegisterPatterns.includes(registerForLicense) || 
-                            (registerForLicense && registerForLicense.length < 8 && !/^\d+$/.test(registerForLicense));
-  
-  console.log("🔍 Employee data for license check:", {
-    hasBaiguullaga: !!baiguullaga,
-    baiguullagaRegister: baiguullaga?.register || "N/A",
-    ajiltanRegister: ajiltan.register || "N/A",
-    ajiltanNevtrekhNer: ajiltan.nevtrekhNer || "N/A",
-    usingRegister: registerForLicense,
-    looksLikeUsername: looksLikeUsername,
-  });
-
-  // Skip license check if register looks like a username or no valid baiguullaga
-  if (looksLikeUsername || !baiguullaga) {
-    console.log("⚠️ Skipping license check - register looks invalid or no baiguullaga found");
-    console.log("⚠️ To get license data, ensure employee has a baiguullaga with valid register");
-    
-    // Generate JWT without license expiration date
-    console.log("🔍 Generating JWT token without license data...");
-    const jwt = await ajiltan.tokenUusgeye(null, null);
-    console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
-    butsaakhObject.token = jwt;
-    butsaakhObject.duusakhOgnoo = null;
-    butsaakhObject.salbaruud = null;
-
-    if (!!butsaakhObject.result) {
-      butsaakhObject.result = JSON.parse(JSON.stringify(butsaakhObject.result));
-      butsaakhObject.result.salbaruud = null;
-      butsaakhObject.result.duusakhOgnoo = null;
-    }
-
-    //doorxiig zogsooliinPos-d zoriulj oruulaw
-    if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
-      butsaakhObject.result.zogsoolNer = baiguullaga?.tokhirgoo?.zogsoolNer;
-    else if (baiguullaga?.ner)
-      butsaakhObject.result.zogsoolNer = baiguullaga.ner;
-    else
-      butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
-
-    console.log("✅ ajiltanNevtrey completed successfully (without license data), sending response");
-    return res.status(200).json(butsaakhObject);
-  }
-  
   console.log("🔍 Calling duusakhOgnooAvya with:", {
-    register: registerForLicense,
+    register: baiguullaga.register,
     system: "qrShuukh",
   });
 
   duusakhOgnooAvya(
-    { register: registerForLicense, system: "qrShuukh" },
+    { register: baiguullaga.register, system: "qrShuukh" },
     async (khariu) => {
       try {
         console.log("🔍 duusakhOgnooAvya response:", khariu);
         
-        // Check if response has jagsaalt array (actual API format) or success field (error format)
-        if (khariu.jagsaalt && Array.isArray(khariu.jagsaalt) && khariu.jagsaalt.length > 0) {
+        // Check for success field first (old API format), then jagsaalt array (new format)
+        if (khariu.success) {
+          console.log("✅ duusakhOgnooAvya successful, processing branches...");
+          if (!!khariu.salbaruud) {
+            var butsaakhSalbaruud = [];
+            butsaakhSalbaruud.push({
+              salbariinId: baiguullaga?.barilguud?.[0]?._id,
+              duusakhOgnoo: khariu.duusakhOgnoo,
+            });
+
+            for await (const salbar of khariu.salbaruud) {
+              var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
+                return (
+                  !!x.licenseRegister && x.licenseRegister == salbar.register
+                );
+              });
+
+              if (!!tukhainSalbar) {
+                butsaakhSalbaruud.push({
+                  salbariinId: tukhainSalbar._id,
+                  duusakhOgnoo: salbar.license?.duusakhOgnoo,
+                });
+              }
+            }
+            butsaakhObject.salbaruud = butsaakhSalbaruud;
+          }
+
+          console.log("🔍 Generating JWT token...");
+          const jwt = await ajiltan.tokenUusgeye(
+            khariu.duusakhOgnoo,
+            butsaakhObject.salbaruud
+          );
+          console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
+          butsaakhObject.duusakhOgnoo = khariu.duusakhOgnoo;
+
+          if (!!butsaakhObject.result) {
+            butsaakhObject.result = JSON.parse(
+              JSON.stringify(butsaakhObject.result)
+            );
+            butsaakhObject.result.salbaruud = butsaakhObject.salbaruud;
+            butsaakhObject.result.duusakhOgnoo = khariu.duusakhOgnoo;
+          }
+
+          butsaakhObject.token = jwt;
+
+          //doorxiig zogsooliinPos-d zoriulj oruulaw
+          if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
+            butsaakhObject.result.zogsoolNer =
+              baiguullaga?.tokhirgoo?.zogsoolNer;
+          else butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+
+          console.log(
+            "✅ ajiltanNevtrey completed successfully, sending response"
+          );
+          res.status(200).json(butsaakhObject);
+        } else if (khariu.jagsaalt && Array.isArray(khariu.jagsaalt) && khariu.jagsaalt.length > 0) {
+          // Handle jagsaalt format (new API format)
           console.log("✅ duusakhOgnooAvya successful, processing jagsaalt...");
           
           // Find the matching baiguullaga in jagsaalt by register
           const matchingJagsaal = khariu.jagsaalt.find(
-            (j) => j.register === registerForLicense
+            (j) => j.register === baiguullaga.register
           ) || khariu.jagsaalt[0]; // Fallback to first if no match
           
           const duusakhOgnoo = matchingJagsaal?.license?.duusakhOgnoo;
@@ -277,7 +273,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
 
             // Process other branches from jagsaalt
             for await (const jagsaal of khariu.jagsaalt) {
-              if (jagsaal.register !== registerForLicense && jagsaal.license?.duusakhOgnoo) {
+              if (jagsaal.register !== baiguullaga.register && jagsaal.license?.duusakhOgnoo) {
                 var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
                   return (
                     !!x.licenseRegister && x.licenseRegister == jagsaal.register
@@ -316,10 +312,7 @@ router.post("/ajiltanNevtrey", asyncHandler(async (req, res, next) => {
             if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
               butsaakhObject.result.zogsoolNer =
                 baiguullaga?.tokhirgoo?.zogsoolNer;
-            else if (baiguullaga?.ner)
-              butsaakhObject.result.zogsoolNer = baiguullaga.ner;
-            else
-              butsaakhObject.result.zogsoolNer = ajiltan.ner || "Unknown";
+            else butsaakhObject.result.zogsoolNer = baiguullaga.ner;
 
             console.log("✅ ajiltanNevtrey completed successfully with license data");
             res.status(200).json(butsaakhObject);
