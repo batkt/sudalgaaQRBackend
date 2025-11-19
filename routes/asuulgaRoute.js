@@ -622,7 +622,7 @@ router.get("/exportIkhSanalAjiltan", async (req, res, next) => {
       },
       {
         $match: {
-          surveyCount: { $gte: 40 },
+          surveyCount: { $gte: 2 },
         },
       },
       {
