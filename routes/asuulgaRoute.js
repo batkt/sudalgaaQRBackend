@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Asuult = require("../models/asuult");
 const Khariult = require("../models/khariult");
 const Irts = require("../models/irts");
@@ -469,29 +470,128 @@ router.get("/exportBagaSanalAjiltan", async (req, res, next) => {
 
     const result = await Khariult.aggregate(query);
 
+    // Get employee IDs and fetch full employee records with department hierarchy
+    const employeeIds = result.map((item) => {
+      // Convert string ID to ObjectId if needed
+      return mongoose.Types.ObjectId.isValid(item._id) 
+        ? (typeof item._id === 'string' ? mongoose.Types.ObjectId(item._id) : item._id)
+        : item._id;
+    });
+    const employees = await Ajiltan.find({ _id: { $in: employeeIds } })
+      .populate("departmentAssignments.departmentId", "ner desDugaar")
+      .lean();
+
+    // Create a map for quick lookup
+    const employeeMap = new Map();
+    employees.forEach((emp) => {
+      employeeMap.set(emp._id.toString(), emp);
+    });
+
+    // Get survey counts map
+    const surveyCountMap = new Map();
+    result.forEach((item) => {
+      surveyCountMap.set(item._id, item.surveyCount);
+    });
+
+    // Find maximum department level
+    let maxLevel = 0;
+    employees.forEach((emp) => {
+      if (emp.departmentAssignments && emp.departmentAssignments.length > 0) {
+        const levels = emp.departmentAssignments.map((d) => d.level || 0);
+        const empMaxLevel = Math.max(...levels);
+        if (empMaxLevel > maxLevel) maxLevel = empMaxLevel;
+      }
+    });
+
+    // Collect unique department names at each level for headers
+    const departmentHeaders = new Map(); // level -> Set of department names
+    employees.forEach((emp) => {
+      if (emp.departmentAssignments && emp.departmentAssignments.length > 0) {
+        emp.departmentAssignments.forEach((dept) => {
+          const level = dept.level || 0;
+          if (!departmentHeaders.has(level)) {
+            departmentHeaders.set(level, new Set());
+          }
+          if (dept.departmentName) {
+            departmentHeaders.get(level).add(dept.departmentName);
+          }
+        });
+      }
+    });
+
     const workbook = new excel.Workbook();
     const worksheet = workbook.addWorksheet("Бага саналтай албан хаагчид");
 
-    worksheet.columns = [
+    // Build columns
+    const columns = [
       { header: "Овог", key: "ovog", width: 20 },
       { header: "Нэр", key: "ner", width: 20 },
       { header: "Регистр", key: "register", width: 20 },
       { header: "Утас", key: "utas", width: 15 },
       { header: "Санал тоо", key: "surveyCount", width: 15 },
-      { header: "Албан тушаал", key: "albanTushaal", width: 25 },
-      { header: "Цол", key: "tsol", width: 20 },
     ];
 
+    // Add department hierarchy columns with actual department names
+    const deptColumnMap = new Map(); // Maps level to column info
+    for (let level = 0; level <= maxLevel; level++) {
+      const deptNames = departmentHeaders.get(level);
+      if (deptNames && deptNames.size > 0) {
+        // Use the first/most common department name at this level as header
+        const deptName = Array.from(deptNames)[0];
+        const columnKey = `dept_${level}`;
+        columns.push({
+          header: deptName,
+          key: columnKey,
+          width: 30,
+        });
+        deptColumnMap.set(level, { key: columnKey, name: deptName });
+      }
+    }
+
+    worksheet.columns = columns;
+
+    // Add rows
     result.forEach((item) => {
-      worksheet.addRow({
-        ovog: item.ajiltan?.ovog || "",
-        ner: item.ajiltan?.ner || "",
-        register: item.ajiltan?.register || "",
-        utas: item.ajiltan?.utas || "",
-        surveyCount: item.surveyCount,
-        albanTushaal: item.ajiltan?.tasag || "",
-        tsol: item.ajiltan?.tsol || "",
+      const employeeId = mongoose.Types.ObjectId.isValid(item._id) && typeof item._id === 'string'
+        ? mongoose.Types.ObjectId(item._id).toString()
+        : item._id.toString();
+      const employee = employeeMap.get(employeeId);
+      if (!employee) return;
+
+      // Build department path
+      const departmentPath = [];
+      if (employee.departmentAssignments && employee.departmentAssignments.length > 0) {
+        const sortedDepts = [...employee.departmentAssignments].sort(
+          (a, b) => (a.level || 0) - (b.level || 0)
+        );
+        for (let level = 0; level <= maxLevel; level++) {
+          const dept = sortedDepts.find((d) => d.level === level);
+          departmentPath.push(dept?.departmentName || "");
+        }
+      } else {
+        // Fill with empty strings if no departments
+        for (let level = 0; level <= maxLevel; level++) {
+          departmentPath.push("");
+        }
+      }
+
+      const rowData = {
+        ovog: employee.ovog || "",
+        ner: employee.ner || "",
+        register: employee.register || "",
+        utas: employee.utas || "",
+        surveyCount: item.surveyCount || 0,
+      };
+
+      // Add department columns
+      departmentPath.forEach((deptName, index) => {
+        const columnKey = `dept_${index}`;
+        if (deptColumnMap.has(index)) {
+          rowData[columnKey] = deptName;
+        }
       });
+
+      worksheet.addRow(rowData);
     });
 
     res.setHeader(
@@ -532,29 +632,128 @@ router.get("/exportIkhSanalAjiltan", async (req, res, next) => {
 
     const result = await Khariult.aggregate(query);
 
+    // Get employee IDs and fetch full employee records with department hierarchy
+    const employeeIds = result.map((item) => {
+      // Convert string ID to ObjectId if needed
+      return mongoose.Types.ObjectId.isValid(item._id) 
+        ? (typeof item._id === 'string' ? mongoose.Types.ObjectId(item._id) : item._id)
+        : item._id;
+    });
+    const employees = await Ajiltan.find({ _id: { $in: employeeIds } })
+      .populate("departmentAssignments.departmentId", "ner desDugaar")
+      .lean();
+
+    // Create a map for quick lookup
+    const employeeMap = new Map();
+    employees.forEach((emp) => {
+      employeeMap.set(emp._id.toString(), emp);
+    });
+
+    // Get survey counts map
+    const surveyCountMap = new Map();
+    result.forEach((item) => {
+      surveyCountMap.set(item._id, item.surveyCount);
+    });
+
+    // Find maximum department level
+    let maxLevel = 0;
+    employees.forEach((emp) => {
+      if (emp.departmentAssignments && emp.departmentAssignments.length > 0) {
+        const levels = emp.departmentAssignments.map((d) => d.level || 0);
+        const empMaxLevel = Math.max(...levels);
+        if (empMaxLevel > maxLevel) maxLevel = empMaxLevel;
+      }
+    });
+
+    // Collect unique department names at each level for headers
+    const departmentHeaders = new Map(); // level -> Set of department names
+    employees.forEach((emp) => {
+      if (emp.departmentAssignments && emp.departmentAssignments.length > 0) {
+        emp.departmentAssignments.forEach((dept) => {
+          const level = dept.level || 0;
+          if (!departmentHeaders.has(level)) {
+            departmentHeaders.set(level, new Set());
+          }
+          if (dept.departmentName) {
+            departmentHeaders.get(level).add(dept.departmentName);
+          }
+        });
+      }
+    });
+
     const workbook = new excel.Workbook();
     const worksheet = workbook.addWorksheet("Их саналтай албан хаагчид");
 
-    worksheet.columns = [
+    // Build columns
+    const columns = [
       { header: "Овог", key: "ovog", width: 20 },
       { header: "Нэр", key: "ner", width: 20 },
       { header: "Регистр", key: "register", width: 20 },
       { header: "Утас", key: "utas", width: 15 },
       { header: "Санал тоо", key: "surveyCount", width: 15 },
-      { header: "Албан тушаал", key: "albanTushaal", width: 25 },
-      { header: "Цол", key: "tsol", width: 20 },
     ];
 
+    // Add department hierarchy columns with actual department names
+    const deptColumnMap = new Map(); // Maps level to column info
+    for (let level = 0; level <= maxLevel; level++) {
+      const deptNames = departmentHeaders.get(level);
+      if (deptNames && deptNames.size > 0) {
+        // Use the first/most common department name at this level as header
+        const deptName = Array.from(deptNames)[0];
+        const columnKey = `dept_${level}`;
+        columns.push({
+          header: deptName,
+          key: columnKey,
+          width: 30,
+        });
+        deptColumnMap.set(level, { key: columnKey, name: deptName });
+      }
+    }
+
+    worksheet.columns = columns;
+
+    // Add rows
     result.forEach((item) => {
-      worksheet.addRow({
-        ovog: item.ajiltan?.ovog || "",
-        ner: item.ajiltan?.ner || "",
-        register: item.ajiltan?.register || "",
-        utas: item.ajiltan?.utas || "",
-        surveyCount: item.surveyCount,
-        albanTushaal: item.ajiltan?.tasag || "",
-        tsol: item.ajiltan?.tsol || "",
+      const employeeId = mongoose.Types.ObjectId.isValid(item._id) && typeof item._id === 'string'
+        ? mongoose.Types.ObjectId(item._id).toString()
+        : item._id.toString();
+      const employee = employeeMap.get(employeeId);
+      if (!employee) return;
+
+      // Build department path
+      const departmentPath = [];
+      if (employee.departmentAssignments && employee.departmentAssignments.length > 0) {
+        const sortedDepts = [...employee.departmentAssignments].sort(
+          (a, b) => (a.level || 0) - (b.level || 0)
+        );
+        for (let level = 0; level <= maxLevel; level++) {
+          const dept = sortedDepts.find((d) => d.level === level);
+          departmentPath.push(dept?.departmentName || "");
+        }
+      } else {
+        // Fill with empty strings if no departments
+        for (let level = 0; level <= maxLevel; level++) {
+          departmentPath.push("");
+        }
+      }
+
+      const rowData = {
+        ovog: employee.ovog || "",
+        ner: employee.ner || "",
+        register: employee.register || "",
+        utas: employee.utas || "",
+        surveyCount: item.surveyCount || 0,
+      };
+
+      // Add department columns
+      departmentPath.forEach((deptName, index) => {
+        const columnKey = `dept_${index}`;
+        if (deptColumnMap.has(index)) {
+          rowData[columnKey] = deptName;
+        }
       });
+
+      worksheet.addRow(rowData);
     });
 
     res.setHeader(
@@ -579,10 +778,41 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    // Get employee IDs from comments and fetch full employee records with department hierarchy
+    const employeeIds = comments
+      .map((c) => c.ajiltan?._id)
+      .filter((id) => id)
+      .map((id) => {
+        // Convert string ID to ObjectId if needed
+        return mongoose.Types.ObjectId.isValid(id) 
+          ? (typeof id === 'string' ? mongoose.Types.ObjectId(id) : id)
+          : id;
+      });
+    const employees = await Ajiltan.find({ _id: { $in: employeeIds } })
+      .populate("departmentAssignments.departmentId", "ner desDugaar")
+      .lean();
+
+    // Create a map for quick lookup
+    const employeeMap = new Map();
+    employees.forEach((emp) => {
+      employeeMap.set(emp._id.toString(), emp);
+    });
+
+    // Find maximum department level
+    let maxLevel = 0;
+    employees.forEach((emp) => {
+      if (emp.departmentAssignments && emp.departmentAssignments.length > 0) {
+        const levels = emp.departmentAssignments.map((d) => d.level || 0);
+        const empMaxLevel = Math.max(...levels);
+        if (empMaxLevel > maxLevel) maxLevel = empMaxLevel;
+      }
+    });
+
     const workbook = new excel.Workbook();
     const worksheet = workbook.addWorksheet("Анхаарах шаардлагатай сэтгэгдлүүд");
 
-    worksheet.columns = [
+    // Build columns
+    const columns = [
       { header: "Огноо", key: "ognoo", width: 20 },
       { header: "Албан хаагчийн овог", key: "ajiltanOvog", width: 20 },
       { header: "Албан хаагчийн нэр", key: "ajiltanNer", width: 20 },
@@ -594,6 +824,41 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
       { header: "Асуултын нэр", key: "asuultiinNer", width: 30 },
     ];
 
+    // Collect unique department names at each level for headers
+    const departmentHeaders = new Map(); // level -> Set of department names
+    employees.forEach((emp) => {
+      if (emp.departmentAssignments && emp.departmentAssignments.length > 0) {
+        emp.departmentAssignments.forEach((dept) => {
+          const level = dept.level || 0;
+          if (!departmentHeaders.has(level)) {
+            departmentHeaders.set(level, new Set());
+          }
+          if (dept.departmentName) {
+            departmentHeaders.get(level).add(dept.departmentName);
+          }
+        });
+      }
+    });
+
+    // Add department hierarchy columns with actual department names
+    const deptColumnMap = new Map(); // Maps level to column info
+    for (let level = 0; level <= maxLevel; level++) {
+      const deptNames = departmentHeaders.get(level);
+      if (deptNames && deptNames.size > 0) {
+        // Use the first/most common department name at this level as header
+        const deptName = Array.from(deptNames)[0];
+        const columnKey = `dept_${level}`;
+        columns.push({
+          header: deptName,
+          key: columnKey,
+          width: 30,
+        });
+        deptColumnMap.set(level, { key: columnKey, name: deptName });
+      }
+    }
+
+    worksheet.columns = columns;
+
     comments.forEach((comment) => {
       let dateStr = "";
       if (comment.ognoo) {
@@ -603,8 +868,33 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
         const date = new Date(comment.createdAt);
         dateStr = date.toISOString().replace("T", " ").substring(0, 19);
       }
-      
-      worksheet.addRow({
+
+      // Get employee with department hierarchy
+      const employeeId = comment.ajiltan?._id 
+        ? (mongoose.Types.ObjectId.isValid(comment.ajiltan._id) && typeof comment.ajiltan._id === 'string'
+            ? mongoose.Types.ObjectId(comment.ajiltan._id).toString()
+            : comment.ajiltan._id.toString())
+        : null;
+      const employee = employeeId ? employeeMap.get(employeeId) : null;
+
+      // Build department path
+      const departmentPath = [];
+      if (employee && employee.departmentAssignments && employee.departmentAssignments.length > 0) {
+        const sortedDepts = [...employee.departmentAssignments].sort(
+          (a, b) => (a.level || 0) - (b.level || 0)
+        );
+        for (let level = 0; level <= maxLevel; level++) {
+          const dept = sortedDepts.find((d) => d.level === level);
+          departmentPath.push(dept?.departmentName || "");
+        }
+      } else {
+        // Fill with empty strings if no departments
+        for (let level = 0; level <= maxLevel; level++) {
+          departmentPath.push("");
+        }
+      }
+
+      const rowData = {
         ognoo: dateStr,
         ajiltanOvog: comment.ajiltan?.ovog || "",
         ajiltanNer: comment.ajiltan?.ner || "",
@@ -614,7 +904,17 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
         onoo: comment.onoo || 0,
         onooMessage: comment.onooMessage || "",
         asuultiinNer: comment.asuultiinNer || "",
+      };
+
+      // Add department columns
+      departmentPath.forEach((deptName, index) => {
+        const columnKey = `dept_${index}`;
+        if (deptColumnMap.has(index)) {
+          rowData[columnKey] = deptName;
+        }
       });
+
+      worksheet.addRow(rowData);
     });
 
     res.setHeader(
