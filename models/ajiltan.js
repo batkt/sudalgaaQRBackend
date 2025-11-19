@@ -105,24 +105,9 @@ ajiltanSchema.methods.addDepartmentAssignment = function(level, departmentId, de
 };
 
 const AjiltanModel = mongoose.model("ajiltan", ajiltanSchema);
-AjiltanModel.estimatedDocumentCount().then((count) => {
-  console.dir(count);
 
-  if (count == 0) {
-    AjiltanModel.create(
-      new AjiltanModel({
-        ner: "Admin",
-        nevtrekhNer: "Admin",
-        utas: "Admin",
-        mail: "Admin",
-        erkh: "superAdmin",
-        register: "Admin",
-        albanTushaal: "Admin",
-        nuutsUg: "123",
-      })
-    );
-  }
-});
+// Note: Default admin user initialization removed since we're using zevbackv2
+// Admin users should be created through the baiguullagaBurtgekh route or manually
 
 // Export function that matches zevbackv2 pattern (like Baiguullaga)
 function AjiltanFunction(conn) {
