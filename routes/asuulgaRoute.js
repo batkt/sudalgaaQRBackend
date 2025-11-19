@@ -1005,10 +1005,8 @@ router.get("/exportKhandaltiinYavts", async (req, res, next) => {
   }
 });
 
-// Export by rating (Онооны тоогоор) - Count & Date
 router.get("/exportOnooniiToogoor", async (req, res, next) => {
   try {
-    // Get date filters from query params if provided
     const dateFilter = {};
     if (req.query.ekhlekhOgnoo || req.query.duusakhOgnoo) {
       if (req.query.ekhlekhOgnoo) {
@@ -1027,15 +1025,24 @@ router.get("/exportOnooniiToogoor", async (req, res, next) => {
       ? { createdAt: dateFilter }
       : {};
 
-    // Group by rating and date
+    // Unwind khariultuud array and group by rating value and date
     const query = [
       {
         $match: matchStage,
       },
       {
+        $unwind: "$khariultuud",
+      },
+      {
+        $match: {
+          "khariultuud.sudalgaaniiTurul": "Оноо өгөх",
+          "khariultuud.khariult": { $exists: true, $ne: null, $ne: "" }
+        }
+      },
+      {
         $group: {
           _id: {
-            onoo: "$onoo",
+            onoo: "$khariultuud.khariult",
             date: {
               $dateToString: {
                 format: "%Y-%m-%d",
