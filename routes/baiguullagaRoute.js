@@ -23,7 +23,13 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
     baiguullaga
       .save()
       .then((result) => {
-        db.kholboltNemye(baiguullaga._id, req.body.baaziinNer);
+        db.kholboltNemye(
+          baiguullaga._id,
+          req.body.baaziinNer,
+          "127.0.0.1:27017",
+          "admin",
+          "Br1stelback1"
+        );
         if (req.body.ajiltan) {
           let ajiltan = new Ajiltan(db.erunkhiiKholbolt)(req.body.ajiltan);
           ajiltan.erkh = "Admin";
