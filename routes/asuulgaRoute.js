@@ -20,6 +20,7 @@ const {
 const QRCode = require("qrcode");
 const archiver = require("archiver");
 const fs = require("fs");
+const excel = require("exceljs");
 
 crud(router, "asuult", Asuult, UstsanBarimt);
 crud(router, "khariult", Khariult, UstsanBarimt);
@@ -444,5 +445,191 @@ function generateQRCode(data, filename) {
     });
   });
 }
+
+// Export employees with low ratings (1-5 surveys)
+router.get("/exportBagaSanalAjiltan", async (req, res, next) => {
+  try {
+    const query = [
+      {
+        $group: {
+          _id: "$ajiltan._id",
+          ajiltan: { $first: "$ajiltan" },
+          surveyCount: { $sum: 1 },
+        },
+      },
+      {
+        $match: {
+          surveyCount: { $gte: 1, $lte: 5 },
+        },
+      },
+      {
+        $sort: { surveyCount: 1 },
+      },
+    ];
+
+    const result = await Khariult.aggregate(query);
+
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet("Бага саналтай албан хаагчид");
+
+    worksheet.columns = [
+      { header: "Овог", key: "ovog", width: 20 },
+      { header: "Нэр", key: "ner", width: 20 },
+      { header: "Регистр", key: "register", width: 20 },
+      { header: "Утас", key: "utas", width: 15 },
+      { header: "Санал тоо", key: "surveyCount", width: 15 },
+      { header: "Албан тушаал", key: "albanTushaal", width: 25 },
+      { header: "Цол", key: "tsol", width: 20 },
+    ];
+
+    result.forEach((item) => {
+      worksheet.addRow({
+        ovog: item.ajiltan?.ovog || "",
+        ner: item.ajiltan?.ner || "",
+        register: item.ajiltan?.register || "",
+        utas: item.ajiltan?.utas || "",
+        surveyCount: item.surveyCount,
+        albanTushaal: item.ajiltan?.tasag || "",
+        tsol: item.ajiltan?.tsol || "",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename*=UTF-8''baga_sanal_ajiltan.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(() => res.status(200).end());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export employees with high ratings (40+ surveys)
+router.get("/exportIkhSanalAjiltan", async (req, res, next) => {
+  try {
+    const query = [
+      {
+        $group: {
+          _id: "$ajiltan._id",
+          ajiltan: { $first: "$ajiltan" },
+          surveyCount: { $sum: 1 },
+        },
+      },
+      {
+        $match: {
+          surveyCount: { $gte: 40 },
+        },
+      },
+      {
+        $sort: { surveyCount: -1 },
+      },
+    ];
+
+    const result = await Khariult.aggregate(query);
+
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet("Их саналтай албан хаагчид");
+
+    worksheet.columns = [
+      { header: "Овог", key: "ovog", width: 20 },
+      { header: "Нэр", key: "ner", width: 20 },
+      { header: "Регистр", key: "register", width: 20 },
+      { header: "Утас", key: "utas", width: 15 },
+      { header: "Санал тоо", key: "surveyCount", width: 15 },
+      { header: "Албан тушаал", key: "albanTushaal", width: 25 },
+      { header: "Цол", key: "tsol", width: 20 },
+    ];
+
+    result.forEach((item) => {
+      worksheet.addRow({
+        ovog: item.ajiltan?.ovog || "",
+        ner: item.ajiltan?.ner || "",
+        register: item.ajiltan?.register || "",
+        utas: item.ajiltan?.utas || "",
+        surveyCount: item.surveyCount,
+        albanTushaal: item.ajiltan?.tasag || "",
+        tsol: item.ajiltan?.tsol || "",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename*=UTF-8''ikh_sanal_ajiltan.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(() => res.status(200).end());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export comments that need attention (negative feedback)
+router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
+  try {
+    const comments = await Khariult.find({ surugEsekh: true })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet("Анхаарах шаардлагатай сэтгэгдлүүд");
+
+    worksheet.columns = [
+      { header: "Огноо", key: "ognoo", width: 20 },
+      { header: "Албан хаагчийн овог", key: "ajiltanOvog", width: 20 },
+      { header: "Албан хаагчийн нэр", key: "ajiltanNer", width: 20 },
+      { header: "Регистр", key: "register", width: 20 },
+      { header: "Утас", key: "utas", width: 15 },
+      { header: "Сэтгэгдэл", key: "tailbar", width: 50 },
+      { header: "Үнэлгээ", key: "onoo", width: 15 },
+      { header: "Үнэлгээний мессеж", key: "onooMessage", width: 30 },
+      { header: "Асуултын нэр", key: "asuultiinNer", width: 30 },
+    ];
+
+    comments.forEach((comment) => {
+      let dateStr = "";
+      if (comment.ognoo) {
+        const date = new Date(comment.ognoo);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      } else if (comment.createdAt) {
+        const date = new Date(comment.createdAt);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      }
+      
+      worksheet.addRow({
+        ognoo: dateStr,
+        ajiltanOvog: comment.ajiltan?.ovog || "",
+        ajiltanNer: comment.ajiltan?.ner || "",
+        register: comment.ajiltan?.register || "",
+        utas: comment.utas || "",
+        tailbar: comment.tailbar || "",
+        onoo: comment.onoo || 0,
+        onooMessage: comment.onooMessage || "",
+        asuultiinNer: comment.asuultiinNer || "",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename*=UTF-8''ankhaarakh_setgegdel.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(() => res.status(200).end());
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;

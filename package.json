@@ -9,12 +9,13 @@
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "update": "git pull && pm2 reload qrSudalgaaBack",
-    "addpack": "npm install --registry http://103.143.40.90:4873 zevback"
+    "addpack": "npm install --registry http://103.143.40.90:4873 zevbackv2"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^5.1.0",
+    "exceljs": "^4.4.0",
     "multer": "^2.0.2",
     "qrcode": "^1.5.3",
     "zevback": "^1.1.43",
