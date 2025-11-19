@@ -255,7 +255,7 @@ router.get("/asuultiinJagsaaltAvya", async (req, res, next) => {
 router.post("/khariultKhadgalya", async (req, res, next) => {
   try {
     var khariult = new Khariult(req.body);
-    var ajiltan = await Ajiltan.findOne({ utas: khariult.utas });
+    var ajiltan = await Ajiltan.default.findOne({ utas: khariult.utas });
     if (!!ajiltan)
       throw new Error("Алба хаагчын утаснаас санал өгөх боломжгүй!");
     await khariult.save();
@@ -340,7 +340,7 @@ router.post("/irtsUgye", async (req, res, next) => {
       ognoo: { $lt: duusakhOgnoo, $gt: ekhlekhOgnoo },
     });
     if (!oldsonIrts) {
-      var ajiltan = await Ajiltan.findById(ajiltniiId);
+      var ajiltan = await Ajiltan.default.findById(ajiltniiId);
       var irts = new Irts({
         ajiltniiId: ajiltan._id,
         ovog: ajiltan.ovog,
