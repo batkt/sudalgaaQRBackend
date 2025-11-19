@@ -932,4 +932,369 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
   }
 });
 
+// Export access progress (Хандалтын явц) - Citizen & Date
+router.get("/exportKhandaltiinYavts", async (req, res, next) => {
+  try {
+    // Get date filters from query params if provided
+    const dateFilter = {};
+    if (req.query.ekhlekhOgnoo || req.query.duusakhOgnoo) {
+      if (req.query.ekhlekhOgnoo) {
+        const startDate = new Date(req.query.ekhlekhOgnoo);
+        startDate.setHours(0, 0, 0, 0);
+        dateFilter["$gte"] = startDate;
+      }
+      if (req.query.duusakhOgnoo) {
+        const endDate = new Date(req.query.duusakhOgnoo);
+        endDate.setHours(23, 59, 59, 999);
+        dateFilter["$lte"] = endDate;
+      }
+    }
+
+    const matchStage = Object.keys(dateFilter).length > 0 
+      ? { createdAt: dateFilter }
+      : {};
+
+    const khariultuud = await Khariult.find(matchStage)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet("Хандалтын явц");
+
+    worksheet.columns = [
+      { header: "Иргэн (Утас)", key: "utas", width: 20 },
+      { header: "Огноо", key: "ognoo", width: 20 },
+      { header: "Албан хаагчийн нэр", key: "ajiltanNer", width: 25 },
+      { header: "Албан хаагчийн овог", key: "ajiltanOvog", width: 25 },
+      { header: "Асуултын нэр", key: "asuultiinNer", width: 30 },
+      { header: "Сэтгэгдэл", key: "tailbar", width: 50 },
+    ];
+
+    khariultuud.forEach((khariult) => {
+      let dateStr = "";
+      if (khariult.ognoo) {
+        const date = new Date(khariult.ognoo);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      } else if (khariult.createdAt) {
+        const date = new Date(khariult.createdAt);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      }
+
+      worksheet.addRow({
+        utas: khariult.utas || "",
+        ognoo: dateStr,
+        ajiltanNer: khariult.ajiltan?.ner || "",
+        ajiltanOvog: khariult.ajiltan?.ovog || "",
+        asuultiinNer: khariult.asuultiinNer || "",
+        tailbar: khariult.tailbar || "",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename*=UTF-8''khandaltiin_yavts.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(() => res.status(200).end());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export by rating (Онооны тоогоор) - Count & Date
+router.get("/exportOnooniiToogoor", async (req, res, next) => {
+  try {
+    // Get date filters from query params if provided
+    const dateFilter = {};
+    if (req.query.ekhlekhOgnoo || req.query.duusakhOgnoo) {
+      if (req.query.ekhlekhOgnoo) {
+        const startDate = new Date(req.query.ekhlekhOgnoo);
+        startDate.setHours(0, 0, 0, 0);
+        dateFilter["$gte"] = startDate;
+      }
+      if (req.query.duusakhOgnoo) {
+        const endDate = new Date(req.query.duusakhOgnoo);
+        endDate.setHours(23, 59, 59, 999);
+        dateFilter["$lte"] = endDate;
+      }
+    }
+
+    const matchStage = Object.keys(dateFilter).length > 0 
+      ? { createdAt: dateFilter }
+      : {};
+
+    // Group by rating and date
+    const query = [
+      {
+        $match: matchStage,
+      },
+      {
+        $group: {
+          _id: {
+            onoo: "$onoo",
+            date: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: { $ifNull: ["$ognoo", "$createdAt"] }
+              }
+            }
+          },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $sort: {
+          "_id.date": -1,
+          "_id.onoo": -1,
+        },
+      },
+    ];
+
+    const result = await Khariult.aggregate(query);
+
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet("Онооны тоогоор");
+
+    worksheet.columns = [
+      { header: "Оноо", key: "onoo", width: 15 },
+      { header: "Тоо", key: "count", width: 15 },
+      { header: "Огноо", key: "ognoo", width: 20 },
+    ];
+
+    result.forEach((item) => {
+      worksheet.addRow({
+        onoo: item._id.onoo || 0,
+        count: item.count,
+        ognoo: item._id.date || "",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename*=UTF-8''onoonii_toogoor.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(() => res.status(200).end());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export all statistics in one Excel file with 4 sheets
+router.get("/exportSanalTailan", async (req, res, next) => {
+  try {
+    const now = new Date();
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    // Get date filters from query params if provided
+    const dateFilter = {};
+    if (req.query.ekhlekhOgnoo || req.query.duusakhOgnoo) {
+      if (req.query.ekhlekhOgnoo) {
+        const startDate = new Date(req.query.ekhlekhOgnoo);
+        startDate.setHours(0, 0, 0, 0);
+        dateFilter["$gte"] = startDate;
+      }
+      if (req.query.duusakhOgnoo) {
+        const endDate = new Date(req.query.duusakhOgnoo);
+        endDate.setHours(23, 59, 59, 999);
+        dateFilter["$lte"] = endDate;
+      }
+    }
+
+    const workbook = new excel.Workbook();
+
+    // Sheet 1: Өмнөх сарын санал (Previous month's feedback)
+    const umnukhMatch = {
+      createdAt: { $gte: prevMonthStart, $lt: prevMonthEnd }
+    };
+    if (Object.keys(dateFilter).length > 0) {
+      umnukhMatch.createdAt = { ...umnukhMatch.createdAt, ...dateFilter };
+    }
+    const umnukhSanal = await Khariult.find(umnukhMatch)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const worksheet1 = workbook.addWorksheet("Өмнөх сарын санал");
+    worksheet1.columns = [
+      { header: "Огноо", key: "ognoo", width: 20 },
+      { header: "Иргэн (Утас)", key: "utas", width: 20 },
+      { header: "Албан хаагчийн овог", key: "ajiltanOvog", width: 20 },
+      { header: "Албан хаагчийн нэр", key: "ajiltanNer", width: 20 },
+      { header: "Оноо", key: "onoo", width: 15 },
+      { header: "Сэтгэгдэл", key: "tailbar", width: 50 },
+      { header: "Асуултын нэр", key: "asuultiinNer", width: 30 },
+    ];
+
+    umnukhSanal.forEach((item) => {
+      let dateStr = "";
+      if (item.ognoo) {
+        const date = new Date(item.ognoo);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      } else if (item.createdAt) {
+        const date = new Date(item.createdAt);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      }
+
+      worksheet1.addRow({
+        ognoo: dateStr,
+        utas: item.utas || "",
+        ajiltanOvog: item.ajiltan?.ovog || "",
+        ajiltanNer: item.ajiltan?.ner || "",
+        onoo: item.onoo || 0,
+        tailbar: item.tailbar || "",
+        asuultiinNer: item.asuultiinNer || "",
+      });
+    });
+
+    // Sheet 2: Энэ сарын санал (This month's feedback)
+    const odooMatch = {
+      createdAt: { $gte: currMonthStart, $lt: currMonthEnd }
+    };
+    if (Object.keys(dateFilter).length > 0) {
+      odooMatch.createdAt = { ...odooMatch.createdAt, ...dateFilter };
+    }
+    const odooSanal = await Khariult.find(odooMatch)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const worksheet2 = workbook.addWorksheet("Энэ сарын санал");
+    worksheet2.columns = [
+      { header: "Огноо", key: "ognoo", width: 20 },
+      { header: "Иргэн (Утас)", key: "utas", width: 20 },
+      { header: "Албан хаагчийн овог", key: "ajiltanOvog", width: 20 },
+      { header: "Албан хаагчийн нэр", key: "ajiltanNer", width: 20 },
+      { header: "Оноо", key: "onoo", width: 15 },
+      { header: "Сэтгэгдэл", key: "tailbar", width: 50 },
+      { header: "Асуултын нэр", key: "asuultiinNer", width: 30 },
+    ];
+
+    odooSanal.forEach((item) => {
+      let dateStr = "";
+      if (item.ognoo) {
+        const date = new Date(item.ognoo);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      } else if (item.createdAt) {
+        const date = new Date(item.createdAt);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      }
+
+      worksheet2.addRow({
+        ognoo: dateStr,
+        utas: item.utas || "",
+        ajiltanOvog: item.ajiltan?.ovog || "",
+        ajiltanNer: item.ajiltan?.ner || "",
+        onoo: item.onoo || 0,
+        tailbar: item.tailbar || "",
+        asuultiinNer: item.asuultiinNer || "",
+      });
+    });
+
+    // Sheet 3: Сөрөг санал (Negative feedback)
+    const surugMatch = { surugEsekh: true };
+    if (Object.keys(dateFilter).length > 0) {
+      surugMatch.createdAt = dateFilter;
+    }
+    const surugSanal = await Khariult.find(surugMatch)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const worksheet3 = workbook.addWorksheet("Сөрөг санал");
+    worksheet3.columns = [
+      { header: "Огноо", key: "ognoo", width: 20 },
+      { header: "Иргэн (Утас)", key: "utas", width: 20 },
+      { header: "Албан хаагчийн овог", key: "ajiltanOvog", width: 20 },
+      { header: "Албан хаагчийн нэр", key: "ajiltanNer", width: 20 },
+      { header: "Оноо", key: "onoo", width: 15 },
+      { header: "Сэтгэгдэл", key: "tailbar", width: 50 },
+      { header: "Асуултын нэр", key: "asuultiinNer", width: 30 },
+    ];
+
+    surugSanal.forEach((item) => {
+      let dateStr = "";
+      if (item.ognoo) {
+        const date = new Date(item.ognoo);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      } else if (item.createdAt) {
+        const date = new Date(item.createdAt);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      }
+
+      worksheet3.addRow({
+        ognoo: dateStr,
+        utas: item.utas || "",
+        ajiltanOvog: item.ajiltan?.ovog || "",
+        ajiltanNer: item.ajiltan?.ner || "",
+        onoo: item.onoo || 0,
+        tailbar: item.tailbar || "",
+        asuultiinNer: item.asuultiinNer || "",
+      });
+    });
+
+    // Sheet 4: Эерэг санал (Positive feedback)
+    const eyregMatch = { surugEsekh: false };
+    if (Object.keys(dateFilter).length > 0) {
+      eyregMatch.createdAt = dateFilter;
+    }
+    const eyregSanal = await Khariult.find(eyregMatch)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const worksheet4 = workbook.addWorksheet("Эерэг санал");
+    worksheet4.columns = [
+      { header: "Огноо", key: "ognoo", width: 20 },
+      { header: "Иргэн (Утас)", key: "utas", width: 20 },
+      { header: "Албан хаагчийн овог", key: "ajiltanOvog", width: 20 },
+      { header: "Албан хаагчийн нэр", key: "ajiltanNer", width: 20 },
+      { header: "Оноо", key: "onoo", width: 15 },
+      { header: "Сэтгэгдэл", key: "tailbar", width: 50 },
+      { header: "Асуултын нэр", key: "asuultiinNer", width: 30 },
+    ];
+
+    eyregSanal.forEach((item) => {
+      let dateStr = "";
+      if (item.ognoo) {
+        const date = new Date(item.ognoo);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      } else if (item.createdAt) {
+        const date = new Date(item.createdAt);
+        dateStr = date.toISOString().replace("T", " ").substring(0, 19);
+      }
+
+      worksheet4.addRow({
+        ognoo: dateStr,
+        utas: item.utas || "",
+        ajiltanOvog: item.ajiltan?.ovog || "",
+        ajiltanNer: item.ajiltan?.ner || "",
+        onoo: item.onoo || 0,
+        tailbar: item.tailbar || "",
+        asuultiinNer: item.asuultiinNer || "",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename*=UTF-8''sanal_tailan.xlsx"
+    );
+
+    return workbook.xlsx.write(res).then(() => res.status(200).end());
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
