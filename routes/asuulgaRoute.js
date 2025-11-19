@@ -542,7 +542,7 @@ router.get("/exportBagaSanalAjiltan", async (req, res, next) => {
         columns.push({
           header: deptName,
           key: columnKey,
-          width: 30,
+          width: 50,
         });
         deptColumnMap.set(level, { key: columnKey, name: deptName });
       }
@@ -704,7 +704,7 @@ router.get("/exportIkhSanalAjiltan", async (req, res, next) => {
         columns.push({
           header: deptName,
           key: columnKey,
-          width: 30,
+          width: 50,
         });
         deptColumnMap.set(level, { key: columnKey, name: deptName });
       }
@@ -851,7 +851,7 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
         columns.push({
           header: deptName,
           key: columnKey,
-          width: 30,
+          width: 50,
         });
         deptColumnMap.set(level, { key: columnKey, name: deptName });
       }
