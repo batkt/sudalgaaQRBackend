@@ -39,19 +39,12 @@ const ajiltanSchema = new Schema(
   }
 );
 
-ajiltanSchema.methods.tokenUusgeye = function (duusakhOgnoo, salbaruud) {
-  const payload = {
-    id: this._id,
-    ner: this.ner,
-  };
-  if (duusakhOgnoo) {
-    payload.duusakhOgnoo = duusakhOgnoo;
-  }
-  if (salbaruud) {
-    payload.salbaruud = salbaruud;
-  }
+ajiltanSchema.methods.tokenUusgeye = function () {
   const token = jwt.sign(
-    payload,
+    {
+      id: this._id,
+      ner: this.ner,
+    },
     process.env.APP_SECRET,
     {
       expiresIn: "12h",
@@ -105,51 +98,25 @@ ajiltanSchema.methods.addDepartmentAssignment = function(level, departmentId, de
 };
 
 const AjiltanModel = mongoose.model("ajiltan", ajiltanSchema);
+AjiltanModel.estimatedDocumentCount().then((count) => {
+  console.dir(count);
 
-// Note: Default admin user initialization removed since we're using zevbackv2
-// Admin users should be created through the baiguullagaBurtgekh route or manually
-
-// Export function that matches zevbackv2 pattern (like Baiguullaga)
-function AjiltanFunction(conn) {
-  // If it's already a mongoose connection, use it directly
-  if (conn && typeof conn.model === 'function') {
-    // It's already a mongoose connection
-    return conn.model("ajiltan", ajiltanSchema);
-  }
-
-  // Check if it has kholbolt property (expected pattern from zevbackv2)
-  if (conn && conn.kholbolt && typeof conn.kholbolt === 'object') {
-    const kholboltConn = conn.kholbolt;
-    if (kholboltConn && typeof kholboltConn.model === 'function') {
-      return kholboltConn.model("ajiltan", ajiltanSchema);
-    }
-  }
-
-  // If conn is null, undefined, or empty object (or doesn't have valid connection), use default mongoose connection
-  if (!conn ||
-      (typeof conn === 'object' && Object.keys(conn).length === 0) ||
-      (conn && typeof conn !== 'object')) {
-    return AjiltanModel;
-  }
-
-  // Last resort: throw error (only if conn has properties but none are valid)
-  throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
-}
-
-// Copy all static methods from AjiltanModel to the function for backward compatibility
-Object.setPrototypeOf(AjiltanFunction, AjiltanModel);
-Object.getOwnPropertyNames(AjiltanModel).forEach(name => {
-  if (name !== 'constructor' && typeof AjiltanModel[name] === 'function') {
-    AjiltanFunction[name] = AjiltanModel[name];
+  if (count == 0) {
+    AjiltanModel.create(
+      new AjiltanModel({
+        ner: "Admin",
+        nevtrekhNer: "Admin",
+        utas: "Admin",
+        mail: "Admin",
+        erkh: "superAdmin",
+        register: "Admin",
+        albanTushaal: "Admin",
+        nuutsUg: "123",
+      })
+    );
   }
 });
 
-// Also copy instance methods and make the function callable as a constructor
-AjiltanFunction.prototype = AjiltanModel.prototype;
-
-// Export the function as main export
-module.exports = AjiltanFunction;
-
-// Also export the default model and schema for backward compatibility
-module.exports.default = AjiltanModel;
+// Export both the model and schema
+module.exports = AjiltanModel;
 module.exports.schema = ajiltanSchema;

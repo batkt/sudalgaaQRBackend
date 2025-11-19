@@ -14,16 +14,33 @@ const ajiltanRoute = require("./routes/ajiltanRoute");
 const tailanRoute = require("./routes/tailanRoute");
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
-const { db } = require("zevbackv2");
 
-// Initialize zevbackv2 database connections
-db.kholboltUusgey(
-  app,
-  "mongodb://admin:Br1stelback1@127.0.0.1:27017/qrSudalgaa?authSource=admin"
-);
-
-console.log("zevbackv2 connections initialized");
-server.listen(8085);
+const dbUrl =
+  "mongodb://admin:Br1stelback1@localhost:27017/qrSudalgaa?authSource=admin";
+mongoose
+  .connect(dbUrl, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then((result) => {
+    console.log("xolbogdson");
+    
+    // Initialize zevbackv2 database connection
+    try {
+      const { db } = require("zevbackv2");
+      db.kholboltUusgey(
+        app,
+        "mongodb://admin:Br1stelback1@127.0.0.1:27017/qrSudalgaa?authSource=admin"
+      );
+      console.log("zevbackv2 connection initialized");
+    } catch (zevbackError) {
+      console.error("⚠️ zevbackv2 initialization error:", zevbackError.message);
+      // Continue even if zevbackv2 initialization fails
+    }
+    
+    server.listen(8085);
+  })
+  .catch((err) => console.log(err));
 
 process.env.TZ = "Asia/Ulaanbaatar";
 

@@ -10,6 +10,8 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
     
     const baiguullaga = new Baiguullaga(db.erunkhiiKholbolt)(req.body);
 
+    console.log("------------->" + JSON.stringify(baiguullaga));
+
     baiguullaga.isNew = !baiguullaga.zasakhEsekh;
 
     baiguullaga.barilguud = [
@@ -23,15 +25,31 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
     baiguullaga
       .save()
       .then((result) => {
-        db.kholboltNemye(
+        // Try to register the connection, but don't fail if it doesn't work
+        Promise.resolve(db.kholboltNemye(
           baiguullaga._id,
           req.body.baaziinNer,
           "127.0.0.1:27017",
           "admin",
           "Br1stelback1"
-        );
+        )).catch((kholboltError) => {
+          console.error("⚠️ kholboltNemye error (non-critical):", kholboltError.message);
+          // Continue execution even if connection registration fails
+        });
+        
         if (req.body.ajiltan) {
-          let ajiltan = new Ajiltan(db.erunkhiiKholbolt)(req.body.ajiltan);
+          // Get Ajiltan model from the connection
+          // Register schema if not already registered, then get the model
+          const connection = db.erunkhiiKholbolt.kholbolt;
+          let AjiltanModel;
+          try {
+            AjiltanModel = connection.model('ajiltan');
+          } catch (err) {
+            // Schema not registered, register it now using the schema from the model file
+            const ajiltanSchema = require('../models/ajiltan').schema;
+            AjiltanModel = connection.model('ajiltan', ajiltanSchema);
+          }
+          let ajiltan = new AjiltanModel(req.body.ajiltan);
           ajiltan.erkh = "Admin";
           ajiltan.baiguullagiinId = result._id;
           ajiltan.baiguullagiinNer = result.ner;
@@ -52,21 +70,6 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
-
-router.post("/baiguullagaAvya", (req, res, next) => {
-  const { db } = require("zevbackv2");
-
-  Baiguullaga(db.erunkhiiKholbolt)
-    .findOne({
-      register: req.body.register,
-    })
-    .then((result) => {
-      res.send(result);
-    })
-    .catch((err) => {
-      next(err);
-    });
 });
 
 module.exports = router;
