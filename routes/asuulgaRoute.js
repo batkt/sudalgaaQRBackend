@@ -170,7 +170,7 @@ router.get("/chartDataAvya", async (req, res, next) => {
             },
             {
               $match: {
-                surveyCount: { $gte: 40 },
+                surveyCount: { $gte: 2 },
               },
             },
             {
