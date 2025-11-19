@@ -558,7 +558,7 @@ router.get("/exportBagaSanalAjiltan", async (req, res, next) => {
       const employee = employeeMap.get(employeeId);
       if (!employee) return;
 
-      // Build department path
+      // Build department path with values
       const departmentPath = [];
       if (employee.departmentAssignments && employee.departmentAssignments.length > 0) {
         const sortedDepts = [...employee.departmentAssignments].sort(
@@ -566,7 +566,7 @@ router.get("/exportBagaSanalAjiltan", async (req, res, next) => {
         );
         for (let level = 0; level <= maxLevel; level++) {
           const dept = sortedDepts.find((d) => d.level === level);
-          departmentPath.push(dept?.departmentName || "");
+          departmentPath.push(dept?.departmentValue || dept?.departmentName || "");
         }
       } else {
         // Fill with empty strings if no departments
@@ -583,11 +583,11 @@ router.get("/exportBagaSanalAjiltan", async (req, res, next) => {
         surveyCount: item.surveyCount || 0,
       };
 
-      // Add department columns
-      departmentPath.forEach((deptName, index) => {
+      // Add department columns with values
+      departmentPath.forEach((deptValue, index) => {
         const columnKey = `dept_${index}`;
         if (deptColumnMap.has(index)) {
-          rowData[columnKey] = deptName;
+          rowData[columnKey] = deptValue;
         }
       });
 
@@ -720,7 +720,7 @@ router.get("/exportIkhSanalAjiltan", async (req, res, next) => {
       const employee = employeeMap.get(employeeId);
       if (!employee) return;
 
-      // Build department path
+      // Build department path with values
       const departmentPath = [];
       if (employee.departmentAssignments && employee.departmentAssignments.length > 0) {
         const sortedDepts = [...employee.departmentAssignments].sort(
@@ -728,7 +728,7 @@ router.get("/exportIkhSanalAjiltan", async (req, res, next) => {
         );
         for (let level = 0; level <= maxLevel; level++) {
           const dept = sortedDepts.find((d) => d.level === level);
-          departmentPath.push(dept?.departmentName || "");
+          departmentPath.push(dept?.departmentValue || dept?.departmentName || "");
         }
       } else {
         // Fill with empty strings if no departments
@@ -745,11 +745,11 @@ router.get("/exportIkhSanalAjiltan", async (req, res, next) => {
         surveyCount: item.surveyCount || 0,
       };
 
-      // Add department columns
-      departmentPath.forEach((deptName, index) => {
+      // Add department columns with values
+      departmentPath.forEach((deptValue, index) => {
         const columnKey = `dept_${index}`;
         if (deptColumnMap.has(index)) {
-          rowData[columnKey] = deptName;
+          rowData[columnKey] = deptValue;
         }
       });
 
@@ -877,7 +877,7 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
         : null;
       const employee = employeeId ? employeeMap.get(employeeId) : null;
 
-      // Build department path
+      // Build department path with values
       const departmentPath = [];
       if (employee && employee.departmentAssignments && employee.departmentAssignments.length > 0) {
         const sortedDepts = [...employee.departmentAssignments].sort(
@@ -885,7 +885,7 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
         );
         for (let level = 0; level <= maxLevel; level++) {
           const dept = sortedDepts.find((d) => d.level === level);
-          departmentPath.push(dept?.departmentName || "");
+          departmentPath.push(dept?.departmentValue || dept?.departmentName || "");
         }
       } else {
         // Fill with empty strings if no departments
@@ -906,11 +906,11 @@ router.get("/exportAnkhaarakhSetgegdel", async (req, res, next) => {
         asuultiinNer: comment.asuultiinNer || "",
       };
 
-      // Add department columns
-      departmentPath.forEach((deptName, index) => {
+      // Add department columns with values
+      departmentPath.forEach((deptValue, index) => {
         const columnKey = `dept_${index}`;
         if (deptColumnMap.has(index)) {
-          rowData[columnKey] = deptName;
+          rowData[columnKey] = deptValue;
         }
       });
 
